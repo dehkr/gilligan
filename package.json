@@ -1,0 +1,23 @@
+{
+  "name": "gilligan",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "check": "biome check"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9.3"
+  }
+}
