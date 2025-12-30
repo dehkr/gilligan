@@ -1,12 +1,9 @@
 import { internalBus } from './bus';
 import { effect, reactive } from './reactivity';
+import type { GilliEvent } from './types';
 
 interface GilliController extends Controller {
   [key: string]: unknown; 
-}
-
-interface GilliEvent extends Event {
-  el: HTMLElement;
 }
 
 export class Controller {
