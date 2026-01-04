@@ -1,368 +1,321 @@
 import { internalBus } from './bus';
-import { effect, reactive } from './reactivity';
-import type { GilliEvent } from './types';
+import { effect } from './reactivity';
+import { dispatch, safeParse } from './utils';
+import type { BindableValue, BusCallback, SetupContext } from './types';
 
-interface GilliController extends Controller {
-  [key: string]: unknown; 
+/**
+ * Composes multiple setup functions into a single setup function.
+ * Used when an element has multiple controllers (e.g. data-gn="foo bar").
+ */
+export function composeSetups(setupFns: Function[]) {
+  if (setupFns.length === 0) return () => ({});
+  if (setupFns.length === 1) return setupFns[0];
+
+  return (context: SetupContext) => {
+    const results = setupFns.map((fn) => fn(context));
+    const composed: any = {};
+    const connects: Function[] = [];
+    const disconnects: Function[] = [];
+
+    results.forEach((res) => {
+      if (!res) return;
+
+      // Use getOwnPropertyDescriptors to preserve getters/setters when merging.
+      const descriptors = Object.getOwnPropertyDescriptors(res);
+      Object.keys(descriptors).forEach((key) => {
+        if (key !== 'connect' && key !== 'disconnect') {
+          Object.defineProperty(composed, key, descriptors[key]);
+        }
+      });
+
+      if (typeof res.connect === 'function') {
+        connects.push(res.connect);
+      }
+      if (typeof res.disconnect === 'function') {
+        disconnects.push(res.disconnect);
+      }
+    });
+
+    if (connects.length > 0) {
+      composed.connect = () => {
+        connects.forEach((fn) => fn());
+      };
+    }
+
+    if (disconnects.length > 0) {
+      composed.disconnect = () => {
+        disconnects.forEach((fn) => fn());
+      };
+    }
+
+    return composed;
+  };
 }
 
-export class Controller {
-  public el: HTMLElement;
-  public refs: Record<string, HTMLElement> = {};
+/**
+ * The core factory function. Turns a setup function into a controller instance.
+ */
+export function createController(el: HTMLElement, setupFn: Function) {
+  if (typeof setupFn !== 'function') {
+    throw new Error('[Gilligan] createController requires a setup function.');
+  }
 
-  public _state: any;
-  public _computedCache: any;
-  private _cleanupMap = new WeakMap<HTMLElement, (() => void)[]>();
-  private _observer: MutationObserver | null = null;
+  const refs: Record<string, HTMLElement> = {};
+  const refElements = [el, ...Array.from(el.querySelectorAll<HTMLElement>('[data-gn-ref]'))];
 
-  public connect?(): void;
-  public disconnect?(): void;
-
-  // State and config values can be passed in from html
-  // They overwrite defaults in controller
-  constructor(el: HTMLElement, htmlState: any = {}, htmlConfig: any = {}) {
-    this.el = el;
-    const ctor = this.constructor as any;
-
-    // Initialize internal reactive state
-    this._state = reactive({ ...ctor.state, ...htmlState });
-    this._computedCache = reactive({});
-
-    // Flatten state onto 'this'
-    Object.keys(this._state).forEach((key) => {
-      // Collision guard
-      if (key in this) {
-        console.warn(
-          `[Gilligan] Property collision: "${key}" already exists on the controller.`,
-        );
-        return;
+  refElements.forEach((refEl) => {
+    if (refEl === el || refEl.closest('[data-gn]') === el) {
+      const name = refEl.dataset.gnRef;
+      if (name) {
+        refs[name] = refEl;
       }
-      Object.defineProperty(this, key, {
-        get: () => this._state[key],
-        set: (val) => {
-          this._state[key] = val;
-        },
-        configurable: true,
-        enumerable: true,
+    }
+  });
+
+  const props = safeParse(el.dataset.gnProps);
+
+  const context: SetupContext = {
+    el,
+    refs,
+    props,
+    dispatch: (name: string, detail: any = {}) => dispatch(el, name, detail),
+  };
+
+  const api = setupFn(context);
+
+  const instance: any = {
+    el,
+    refs,
+    cleanup: (fn: () => void) => cleanups.push(fn),
+    _resolveHtmlKey: (key: string) => instance[key],
+  };
+
+  // Copy user API properties to preserve getters/setters.
+  const descriptors = Object.getOwnPropertyDescriptors(api);
+  Object.defineProperties(instance, descriptors);
+
+  const cleanups: (() => void)[] = [];
+
+  instance.listen = <T>(event: string, callback: BusCallback<T>) => {
+    const boundCallback = callback.bind(instance);
+    const unsubscribe = internalBus.on(event, boundCallback);
+    instance.cleanup(unsubscribe);
+  };
+
+  instance._unmount = () => {
+    if (instance.disconnect) instance.disconnect();
+    cleanups.forEach((fn) => fn());
+  };
+
+  initBindings(instance);
+  initEvents(instance);
+
+  if (instance.connect) {
+    instance.connect();
+  }
+
+  return instance;
+}
+
+/**
+ * Scans the DOM for 'data-gn-bind' attributes and sets up reactive effects.
+ * Supports one-way (->) and two-way (<->) bindings.
+ */
+function initBindings(instance: any) {
+  const root = instance.el as HTMLElement;
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('[data-gn-bind]'))];
+
+  elements.forEach((el) => {
+    if (el !== root && el.closest('[data-gn]') !== root) return;
+
+    const rawBindings = el.dataset.gnBind || '';
+    const bindings = rawBindings.trim().split(/\s+/);
+
+    bindings.forEach((inst) => {
+      if (!inst) return;
+
+      // Detect binding direction.
+      const isTwoWay = inst.includes('<->');
+      const separator = isTwoWay ? '<->' : '->';
+      const separatorIndex = inst.indexOf(separator);
+
+      if (separatorIndex === -1) return;
+
+      const bindType = inst.slice(0, separatorIndex);
+      const key = inst.slice(separatorIndex + separator.length);
+
+      // Set up DOM updates (one-way).
+      // Runs for both one-way and two-way bindings.
+      const stopEffect = effect(() => {
+        const value = instance._resolveHtmlKey(key);
+        updateDOM(el, bindType, value as BindableValue);
       });
-    });
+      instance.cleanup(stopEffect);
 
-    // Flatten config onto 'this'
-    const config = { ...ctor.config, ...htmlConfig };
-    Object.keys(config).forEach((key) => {
-      // Collision guard
-      if (key in this) {
-        console.warn(
-          `[Gilligan] Property collision: "${key}" already exists on the controller or in state.`,
-        );
-        return;
-      }
-      // Config props are read-only so only get is defined
-      Object.defineProperty(this, key, {
-        get: () => config[key],
-        configurable: true,
-        enumerable: true,
-      });
-    });
+      // Attach input or change listeners to form elements (inputs,
+      // selects, textareas) for two-way data binding.
+      if (isTwoWay) {
+        const isInput = el instanceof HTMLInputElement;
+        const isSelect = el instanceof HTMLSelectElement;
+        const isContentEditable = el.isContentEditable;
 
-    this._initComputed(ctor.computed || {});
-  }
-
-  public mount() {
-    this._mapRefs();
-
-    // Initialize on current DOM
-    this._initBindings(this.el);
-    this._initEvents(this.el);
-
-    // Watch for future DOM
-    this._observeDOM();
-
-    if (this.connect) {
-      this.connect();
-    }
-  }
-
-  public unmount() {
-    if (this.disconnect) {
-      this.disconnect();
-    }
-
-    // Stop watching the DOM
-    if (this._observer) {
-      this._observer.disconnect();
-      this._observer = null;
-    }
-
-    // Clean up listeners and effects
-    this._performCleanup(this.el);
-    this.refs = {};
-  }
-
-  protected listen(event: string, callback: (payload: any) => void) {
-    const unsubscribe = internalBus.on(event, callback.bind(this));
-    this._registerCleanup(this.el, unsubscribe);
-  }
-
-  private _observeDOM() {
-    this._observer = new MutationObserver((mutations) => {
-      mutations.forEach((m) => {
-        m.removedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) this._performCleanup(node);
-        });
-        m.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            if (node.dataset.gx) return;
-            this._initBindings(node);
-            this._initEvents(node);
-            this._mapRefs();
+        if (isInput || isContentEditable) {
+          let evtType = 'input';
+          const isCheckable = isInput && (el.type === 'checkbox' || el.type === 'radio');
+          
+          if (isSelect || isCheckable) {
+            evtType = 'change';
           }
-        });
-      });
-    });
-    this._observer.observe(this.el, { childList: true, subtree: true });
-  }
 
-  private _performCleanup(el: HTMLElement) {
-    // Clean the node itself
-    const run = (node: HTMLElement) => {
-      const cleanups = this._cleanupMap.get(node);
-      if (cleanups) {
-        cleanups.forEach((fn) => {
-          fn();
-        });
-        this._cleanupMap.delete(node);
-      }
-    };
-    run(el);
-    // Clean all children
-    el.querySelectorAll('*').forEach((node) => {
-      if (node instanceof HTMLElement) {
-        run(node);
-      }
-    });
-  }
+          const handler = () => {
+            let newVal: unknown;
 
-  private _registerCleanup(el: HTMLElement, fn: () => void) {
-    const list = this._cleanupMap.get(el) || [];
-    list.push(fn);
-    this._cleanupMap.set(el, list);
-  }
-
-  private _initEvents(root: HTMLElement) {
-    const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('[data-gx-on]'))];
-
-    elements.forEach((el) => {
-      if (el !== this.el && el.closest('[data-gx]') !== this.el) return;
-
-      const events = el.dataset.gxOn?.split(',') || [];
-      events.forEach((inst) => {
-        let [evtName, funcName] = inst.split(':');
-        evtName = evtName.trim();
-        funcName = funcName.trim();
-
-        const self = this as unknown as GilliController;
-        const potentialHandler = self[funcName];
-
-        if (typeof potentialHandler === 'function') {
-          const handler = (e: Event) => {
-            Object.defineProperty(e, 'el', { value: el, configurable: true });
-            potentialHandler.call(this, e as GilliEvent);
-          };
-          el.addEventListener(evtName, handler);
-          this._registerCleanup(el, () => el.removeEventListener(evtName, handler));
-        } else {
-          console.warn(`[Gilligan] Method "${funcName}" not found.`);
-        }
-      });
-    });
-  }
-
-  private _initBindings(root: HTMLElement) {
-    const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('[data-gx-bind]'))];
-
-    elements.forEach((el) => {
-      if (el !== this.el && el.closest('[data-gx]') !== this.el) return;
-
-      const bindings = el.dataset.gxBind?.split(',') || [];
-      bindings.forEach((inst) => {
-        let [bindType, objKey] = inst.split(':');
-        bindType = bindType.trim();
-        objKey = objKey.trim();
-
-        // Reactive update: state updates DOM
-        const stopEffect = effect(() => {
-          const value = this._resolveValue(objKey);
-          this._updateDOM(el, bindType, value);
-        });
-        this._registerCleanup(el, stopEffect);
-
-        // Two-way bindings: DOM updates state
-        if (bindType === 'value') {
-          const isInput = el instanceof HTMLInputElement;
-          const isTextArea = el instanceof HTMLTextAreaElement;
-          const isSelect = el instanceof HTMLSelectElement;
-
-          if (isInput || isTextArea || isSelect) {
-            // Detect "change" for lazy inputs/selects, "input" for instant typing
-            // Standardizing on 'input' event covers most cases
-            const evtType =
-              isSelect || (isInput && (el.type === 'checkbox' || el.type === 'radio'))
-                ? 'change'
-                : 'input';
-
-            const inputHandler = () => {
-              let newVal: unknown;
-
-              if (isInput && el.type === 'checkbox') {
-                // Checkbox: toggle boolean
-                newVal = el.checked;
-              } else if (isInput && (el.type === 'number' || el.type === 'range')) {
-                // Number/Range: parse float
-                newVal = parseFloat(el.value);
-                if (Number.isNaN(newVal)) newVal = 0;
+            if (isContentEditable) {
+              // Map based on the binding type (text vs html).
+              if (bindType === 'html') {
+                newVal = el.innerHTML;
               } else {
-                // Text, Radio, Select, Textarea: string value
-                newVal = el.value;
+                newVal = el.textContent;
               }
+            } else if (isInput) {
+              const inputEl = el as HTMLInputElement;
+              if (inputEl.type === 'checkbox' && bindType === 'checked') {
+                newVal = inputEl.checked;
+              } else if (inputEl.type === 'number') {
+                newVal = parseFloat(inputEl.value) || 0;
+              } else {
+                // Some frameworks alias this to checked.
+                // Gilligan is strict: value maps to value, checked maps to checked.
+                newVal = inputEl.value;
+              }
+            }
 
-              // Update state
-              (this as any)[objKey] = newVal;
-            };
+            try {
+              instance[key] = newVal;
+            } catch (err) {
+              console.warn(`[Gilligan] Unable to update "${key}". Ensure it has a setter.`, err);
+            }
+          };
 
-            el.addEventListener(evtType, inputHandler);
-            this._registerCleanup(el, () => el.removeEventListener(evtType, inputHandler));
-          }
+          el.addEventListener(evtType, handler);
+          instance.cleanup(() => el.removeEventListener(evtType, handler));
         }
-      });
-    });
-  }
-
-  private _initComputed(schema: Record<string, Function>) {
-    Object.keys(schema).forEach((key) => {
-      // Collision guard
-      if (key in this) {
-        console.warn(
-          `[Gilligan] Property collision: "${key}" already exists on the controller or in state or config.`,
-        );
-        return;
-      }
-
-      const fn = schema[key];
-      // Will run once immediately then whenever 'this.state' props change
-      effect(() => {
-        // Pass 'this' so 'state.count' or 'this.count' can be used inside controller
-        this._computedCache[key] = fn.call(this, this);
-      });
-      // Define getter on instance so computed props are read from the reactive cache
-      // No cleanup here because computed props live as long as controller lives
-      Object.defineProperty(this, key, {
-        get: () => this._computedCache[key],
-        configurable: true,
-        enumerable: true,
-      });
-    });
-  }
-
-  private _mapRefs() {
-    const elements = [
-      this.el,
-      ...Array.from(this.el.querySelectorAll<HTMLElement>('[data-gx-ref]')),
-    ];
-    elements.forEach((el) => {
-      if (el === this.el || el.closest('[data-gx]') === this.el) {
-        if (el.dataset.gxRef) this.refs[el.dataset.gxRef] = el;
       }
     });
-  }
+  });
+}
 
-  private _resolveValue(key: string): unknown {
-    const self = this as unknown as GilliController;
-    const value = self[key];
+/**
+ * Scans the DOM for 'data-gn-on' attributes and attaches event listeners.
+ */
+function initEvents(instance: any) {
+  const root = instance.el as HTMLElement;
+  const elements = [root, ...Array.from(root.querySelectorAll<HTMLElement>('[data-gn-on]'))];
 
-    if (typeof value === 'function') {
-      return value.call(this);
-    }
+  elements.forEach((el) => {
+    if (el !== root && el.closest('[data-gn]') !== root) return;
 
-    return value;
-  }
+    const rawEvents = el.dataset.gnOn || '';
+    const events = rawEvents.trim().split(/\s+/);
 
-  private _updateDOM(el: HTMLElement, type: string, value: any) {
-    if (type === 'text') {
-      el.textContent = value ?? '';
-      return;
-    }
+    events.forEach((inst) => {
+      if (!inst || inst === '') return;
+      const [evtName, funcName] = inst.split('->');
+      if (!evtName || !funcName) return;
 
-    if (type === 'html') {
-      el.innerHTML = value ?? '';
-      return;
-    }
+      const handlerFn = instance._resolveHtmlKey(funcName);
 
-    if (type === 'class') {
-      if (value !== null && typeof value === 'object') {
-        Object.entries(value).forEach(([names, cond]) => {
-          names
-            .split(' ')
-            .filter(Boolean)
-            .forEach((n) => {
-              el.classList.toggle(n, !!cond);
-            });
-        });
-      }
-      return;
-    }
-
-    if (type === 'style') {
-      if (typeof value === 'object' && value !== null) {
-        // Object syntax { color: 'red', 'font-size': '12px' }
-        // This merges with existing styles instead of wiping them
-        Object.assign(el.style, value);
+      if (typeof handlerFn === 'function') {
+        const handler = (e: Event) => {
+          Object.defineProperty(e, 'el', { value: el, configurable: true, writable: true });
+          handlerFn(e);
+        };
+        el.addEventListener(evtName, handler);
+        instance.cleanup(() => el.removeEventListener(evtName, handler));
       } else {
-        // String syntax: "color: red"
-        // This overwrites existing styles
-        el.style.cssText = String(value);
+        console.warn(`[Gilligan] Action "${funcName}" not found.`);
       }
-      return;
+    });
+  });
+}
+
+/**
+ * Direct DOM manipulation utility used by reactive effects.
+ */
+function updateDOM(el: HTMLElement, type: string, value: BindableValue) {
+  // For text and html, compare if current val is different before 
+  // writing to address cursor jumping for contenteditable.
+  if (type === 'text') {
+    const strValue = String(value ?? '');
+    if (el.textContent !== strValue) {
+      el.textContent = strValue;
     }
+    return;
+  }
 
-    // Two-way binding
-    if (type === 'value') {
-      if (el instanceof HTMLInputElement) {
-        // Checkbox: boolean check
-        if (el.type === 'checkbox') {
-          el.checked = !!value;
-          return;
-        }
-        // Radio: selection match
-        if (el.type === 'radio') {
-          el.checked = el.value === String(value);
-          return;
-        }
-      }
-
-      // Text/Range/Select/Textarea: set value
-      // Only update if different to prevent cursor jumping
-      if ((el as any).value !== String(value ?? '')) {
-        (el as any).value = value ?? '';
-      }
-      return;
+  if (type === 'html') {
+    const strValue = String(value ?? '');
+    if (el.innerHTML !== strValue) {
+      el.innerHTML = strValue;
     }
+    return;
+  }
 
-    // Boolean attributes (hidden, disabled, checked, required, readonly, etc.)
-    if (typeof value === 'boolean') {
-      if (value) {
-        el.setAttribute(type, '');
-      } else {
-        el.removeAttribute(type);
-      }
-      return;
-    }
-
-    // Standard attributes (src, href, id, aria-*, etc.)
-    if (value === null || value === undefined || value === false) {
-      el.removeAttribute(type);
+  // Object syntax: merges properties into el.style (additive).
+  // String syntax: overwrites el.style.cssText entirely (destructive).
+  if (type === 'style') {
+    if (typeof value === 'object' && value !== null) {
+      Object.assign(el.style, value);
     } else {
-      el.setAttribute(type, String(value));
+      el.style.cssText = String(value ?? '');
     }
+    return;
   }
+
+  // Object syntax: toggles individual classes based on truthiness (fine-grained).
+  // String syntax: replaces the entire class attribute (bulk update).
+  if (type === 'class') {
+    if (typeof value === 'object' && value !== null) {
+      Object.entries(value).forEach(([cls, active]) => {
+        cls
+          .split(' ')
+          .filter(Boolean)
+          .forEach((c) => el.classList.toggle(c, !!active));
+      });
+    } else {
+      el.className = String(value ?? '');
+    }
+    return;
+  }
+
+  // Synchronizes form inputs. We check (el.value !== newValue) to prevent 
+  // the cursor from snapping to the end of the field on every keystroke.
+  if (type === 'value' && (el as any).value !== String(value ?? '')) {
+    (el as any).value = value ?? '';
+    return;
+  }
+
+  // Explicitly handles checkboxes and radio buttons.
+  if (type === 'checked' && el instanceof HTMLInputElement) {
+    el.checked = !!value;
+    return; 
+  }
+
+  // Handles boolean (disabled, hidden, required) and standard attributes (src, href).
+  // - false/null/undefined: removes the attribute.
+  // - true: sets as a minimized boolean attribute (e.g. disabled="").
+  // - string/number: sets the attribute to the stringified value.
+  if (value == null || value === false) {
+    el.removeAttribute(type);
+  } else {
+    el.setAttribute(type, value === true ? '' : String(value));
+  }
+}
+
+/**
+ * Defines a new controller.
+ * Identity function for TypeScript inference.
+ */
+export function controller<T>(setupFn: (ctx: SetupContext) => T): (ctx: SetupContext) => T {
+  return setupFn;
 }

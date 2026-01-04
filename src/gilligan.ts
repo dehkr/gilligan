@@ -1,88 +1,103 @@
 import { internalBus } from './bus';
-import { Controller } from './controller';
+import { createController, composeSetups, controller } from './controller';
+import { reactive, effect } from './reactivity';
 import { handleFetch } from './fetch';
 import { createStore } from './store';
-import { safeParse } from './utils';
+import { dispatch } from './utils';
 
-const registry: Record<string, typeof Controller> = {};
-const instanceMap = new WeakMap<HTMLElement, Controller>();
+const registry: Record<string, any> = {};
+const instanceMap = new WeakMap<HTMLElement, any>();
 
-const mount = (el: HTMLElement) => {
-  const name = el.dataset.gx;
-  if (name && registry[name] && !instanceMap.has(el)) {
-    try {
-      const state = safeParse(el.dataset.gxState);
-      const config = safeParse(el.dataset.gxConfig);
-      const inst = new registry[name](el, state, config);
-      instanceMap.set(el, inst);
-      inst.mount();
-    } catch (e) {
-      console.error(`[Gilligan] Failed to mount "${name}":`, e);
-    }
+// Initializes a controller on a specific element.
+function mount(el: HTMLElement) {
+  const rawNames = el.dataset.gn;
+  if (!rawNames) return;
+
+  const names = rawNames.trim().split(/\s+/);
+  const defs = names
+    .map((name) => {
+      if (!registry[name]) {
+        console.warn(`[Gilligan] "${name}" not registered.`);
+      }
+      return registry[name];
+    })
+    .filter(Boolean);
+
+  if (defs.length > 0 && !instanceMap.has(el)) {
+    const finalSetup = composeSetups(defs);
+    instanceMap.set(el, createController(el, finalSetup));
   }
 };
 
-const unmount = (el: HTMLElement) => {
+function unmount(el: HTMLElement) {
   const inst = instanceMap.get(el);
   if (inst) {
-    inst.unmount();
+    inst._unmount();
     instanceMap.delete(el);
   }
 };
 
-export const Gilligan = {
-  register: (name: string, controllerClass: typeof Controller) => {
-    registry[name] = controllerClass;
-  },
+function register(name: string, controllerDef: any) {
+  registry[name] = controllerDef;
+}
 
-  start: (manifest: Record<string, typeof Controller> = {}) => {
-    Object.entries(manifest).forEach(([name, cls]) => {
-      Gilligan.register(name, cls);
-    });
-
-    const fetchEvents = ['click', 'submit'];
-
-    const handleGlobalFetch = (e: Event) => {
-      const target = (e.target as HTMLElement).closest<HTMLElement>('[data-gx-fetch]');
-      if (!target) return;
-
+function start() {
+  const handleGlobalFetch = (e: Event) => {
+    const target = (e.target as HTMLElement).closest<HTMLElement>('[data-gn-fetch]');
+    if (target) {
       const isForm = target.tagName === 'FORM';
-      const isSubmit = e.type === 'submit' && isForm;
-      const isClick = e.type === 'click' && !isForm;
-
-      if (isSubmit || isClick) {
+      if ((e.type === 'submit' && isForm) || (e.type === 'click' && !isForm)) {
         e.preventDefault();
         handleFetch(target);
       }
-    };
+    }
+  };
+  ['click', 'submit'].forEach((evt) => document.addEventListener(evt, handleGlobalFetch));
 
-    fetchEvents.forEach((evt) => {
-      document.addEventListener(evt, handleGlobalFetch);
-    });
-
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((m) => {
-        m.removedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            if (node.dataset.gx) unmount(node);
-            node.querySelectorAll<HTMLElement>('[data-gx]').forEach(unmount);
-          }
-        });
-        m.addedNodes.forEach((node) => {
-          if (node instanceof HTMLElement) {
-            if (node.dataset.gx) mount(node);
-            node.querySelectorAll<HTMLElement>('[data-gx]').forEach(mount);
-          }
-        });
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((m) => {
+      m.removedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) {
+          if (node.dataset.gn) unmount(node);
+          node.querySelectorAll<HTMLElement>('[data-gn]').forEach(unmount);
+        }
+      });
+      m.addedNodes.forEach((node) => {
+        if (node instanceof HTMLElement) {
+          if (node.dataset.gn) mount(node);
+          node.querySelectorAll<HTMLElement>('[data-gn]').forEach(mount);
+        }
       });
     });
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
 
-    observer.observe(document.body, { childList: true, subtree: true });
-    document.querySelectorAll<HTMLElement>('[data-gx]').forEach(mount);
-  },
+  const controllers = document.querySelectorAll<HTMLElement>('[data-gn]');
+  if (controllers.length > 0) {
+    controllers.forEach(mount);
+  } else {
+    console.log('[Gilligan] No controllers found.');
+  }
+}
 
+// The public singleton interface. Available as 'Gilligan' and 'gn'.
+export const Gilligan = {
+  // State + logic
+  controller,
+  reactive,
+  effect,
   store: createStore,
+  // Events + communication
+  dispatch,
   emit: internalBus.emit.bind(internalBus),
   on: internalBus.on.bind(internalBus),
   off: internalBus.off.bind(internalBus),
+  // System + lifecycle
+  register,
+  start,
 };
+
+if (typeof window !== 'undefined') {
+  (window as any).Gilligan = Gilligan;
+  (window as any).gn = Gilligan;
+}
