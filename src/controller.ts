@@ -2,7 +2,7 @@ import { internalBus } from './bus';
 import { load } from './load';
 import { effect } from './reactivity';
 import type { GilliganController, GilliganEvent, SetupContext, SetupFn } from './types';
-import { dispatch, safeParse } from './utils';
+import { dispatch, getNestedVal, safeParse, setNestedVal } from './utils';
 
 const REGEX_BIND_SPLIT = /\s+(?=[a-z]+(?:->|<->))/;
 const REGEX_BIND_PARSE = /([a-z]+)(<->|->)(.+)/;
@@ -61,7 +61,7 @@ function bindController(
 
         // State -> DOM
         const stopEffect = effect(() => {
-          const value = instance[key];
+          const value = getNestedVal(instance, key);
 
           switch (type) {
             case 'text':
@@ -138,7 +138,7 @@ function bindController(
                 val = input.checked;
               }
             }
-            instance[key] = val;
+            setNestedVal(instance, key, val);
           };
 
           // Determine best event type
