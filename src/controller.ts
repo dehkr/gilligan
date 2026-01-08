@@ -29,6 +29,7 @@ function bindController(
 ) {
   const elementCleanups = new Map<HTMLElement, (() => void)[]>();
   const boundNodes = new WeakSet<HTMLElement>();
+  const prevClasses = new WeakMap<HTMLElement, string>();
 
   const addCleanup = (el: HTMLElement, fn: () => void) => {
     const cleanups = elementCleanups.get(el) ?? [];
@@ -64,20 +65,22 @@ function bindController(
           const value = getNestedVal(instance, key);
 
           switch (type) {
-            case 'text':
+            case 'text': {
               // Check equality to avoid cursor jumping in contenteditable
               const strVal = String(value ?? '');
               if (el.textContent !== strVal) {
                 el.textContent = strVal;
               }
               break;
+            }
 
-            case 'html':
+            case 'html': {
               const htmlVal = String(value ?? '');
               if (el.innerHTML !== htmlVal) {
                 el.innerHTML = htmlVal;
               }
               break;
+            }
 
             case 'value':
               // Only update inputs if value changed to prevent cursor jumping
@@ -87,24 +90,47 @@ function bindController(
               break;
 
             case 'class':
-              // Supports object syntax and string value
-              if (typeof value === 'object' && value !== null) {
-                Object.entries(value).forEach(([cls, active]) => {
-                  cls.split(' ').forEach((c) => {
-                    el.classList.toggle(c, !!active);
-                  });
-                });
-              } else {
-                el.className = String(value ?? '');
+              // Object syntax toggles class: { 'active': bool } or { 'active bg-red: bool' }
+              if (value && typeof value === 'object') {
+                for (const [cls, active] of Object.entries(value)) {
+                  const classes = cls.trim().split(/\s+/).filter(Boolean);
+
+                  if (classes.length > 0) {
+                    if (active) {
+                      el.classList.add(...classes);
+                    } else {
+                      el.classList.remove(...classes);
+                    }
+                  }
+                }
+              }
+              // String value swaps class safely: 'active' or 'active bg-red'
+              else {
+                const newClass = String(value ?? '').trim();
+                const oldClass = prevClasses.get(el);
+
+                if (oldClass) {
+                  el.classList.remove(...oldClass.split(/\s+/));
+                }
+
+                if (newClass) {
+                  const classes = newClass.split(/\s+/).filter(Boolean);
+                  if (classes.length) {
+                    el.classList.add(...classes);
+                    prevClasses.set(el, newClass);
+                  }
+                } else {
+                  prevClasses.delete(el); // Clean up if no classes remain
+                }
               }
               break;
 
             case 'style':
               // Supports object syntax and string value
-              if (typeof value === 'object' && value !== null) {
+              if (value && typeof value === 'object') {
                 Object.assign(el.style, value);
               } else {
-                el.style.cssText = String(value ?? '');
+                el.style.cssText = String(value ?? '').trim();
               }
               break;
 
