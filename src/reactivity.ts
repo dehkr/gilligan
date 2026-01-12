@@ -6,10 +6,10 @@ const targetMap = new WeakMap<object, Map<string | symbol, Set<() => void>>>();
 
 /**
  * Creates a reactive proxy of the source object.
- * 
+ *
  * @param target The plain object to make reactive.
- * @returns A reactive Proxy of the target. 
- * @note Always interact with the returned Proxy, not the original target object, 
+ * @returns A reactive Proxy of the target.
+ * @note Always interact with the returned Proxy, not the original target object,
  * to ensure reactivity is maintained.
  */
 export function reactive<T extends object>(target: T): T {
@@ -17,43 +17,47 @@ export function reactive<T extends object>(target: T): T {
     return target;
   }
 
-  // If a reactive proxy already exists for this object, return it
+  // If proxy already exists return it
   if (proxyMap.has(target)) {
     return proxyMap.get(target);
-  }  
+  }
 
   const handler: ProxyHandler<T> = {
     get(target, key, receiver) {
       const result = Reflect.get(target, key, receiver);
       track(target, key);
 
-      // Lazy deep reactivity
-      return isObj(result) ? reactive(result) : result;
+      return isObj(result) ? reactive(result) : result; // Lazy deep reactivity
     },
 
     set(target, key, value, receiver) {
       const oldValue = Reflect.get(target, key, receiver);
+      const isArrIndex = Array.isArray(target) && typeof key === 'string' && !isNaN(Number(key));
+      // Check if key was within array or object
+      const hadKey = isArrIndex ? Number(key) < target.length : Object.hasOwn(target, key);
+
       const result = Reflect.set(target, key, value, receiver);
 
-      // Only trigger if the value actually changed
+      // Trigger if value or array length changed
       if (oldValue !== value) {
         trigger(target, key);
+        if (!hadKey && Array.isArray(target)) {
+          trigger(target, 'length');
+        }
       }
       return result;
     },
   };
 
   const proxy = new Proxy(target, handler);
-
-  // Cache the proxy before returning it
   proxyMap.set(target, proxy);
-  
+
   return proxy;
 }
 
 /**
  * Runs a function immediately and re-runs it whenever its reactive dependencies change.
- * 
+ *
  * @param fn The function to execute and track.
  * @returns A stop function that marks the effect as inactive to prevent further runs.
  */
@@ -75,7 +79,7 @@ export function effect(fn: () => void): () => void {
   // Run immediately to capture initial dependencies
   run();
 
-  // Returns the "stop" function. 
+  // Returns the "stop" function.
   // Uses lazy cleanup: the runner is flagged instead of searching the dependency tree.
   // TODO: consider adding active cleanup
   return () => {
