@@ -3,9 +3,10 @@ import { ITEM_PREFIX, STORE_PREFIX } from './constants';
 import { warn } from './diagnostics';
 import { parseDataSourcePath } from './parser';
 import { getNestedVal, getPathParts, setNestedVal } from './path';
-import { EMPTY_SCOPE, renderItem, renderParent } from './render-context';
+import { renderItem, renderParent } from './render-context';
 import type { StoreManager } from './store';
 
+export const EMPTY_SCOPE = {} as Scope;
 const warnedWrites = new Set<string>();
 
 /**
