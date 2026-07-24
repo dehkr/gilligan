@@ -1,34 +1,66 @@
 import { effectScope } from 'alien-signals';
 import type { RouseApp } from '../core/app';
-import { fail } from '../core/diagnostics';
+import { STORE_PREFIX } from '../core/constants';
+import { fail, warn } from '../core/diagnostics';
+import { resolveInjection } from '../core/injection';
+import { rzScope, rzWake } from '../directives';
 import { withMethodAliases } from '../net/request';
-import type { ScopeCtx, ScopeSetup } from '../types';
+import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
-import { dispatch, on } from './events';
+import { attachWakeStrategies, dispatch, on } from './events';
 import { swap } from './swapper';
-
-const instanceMap = new WeakMap<HTMLElement, any>();
 
 export const IS_SCOPE: unique symbol = Symbol('rz_is_scope');
 
-export function scanScopeNode(el: HTMLElement, newNode: Element) {
-  const inst = instanceMap.get(el);
-  if (inst?._scan) {
-    inst._scan(newNode);
-  }
-}
+type ScopeHandle = ReturnType<typeof createScope>;
+const instanceMap = new WeakMap<HTMLElement, ScopeHandle>();
 
-export function teardownScopeNode(el: HTMLElement, removedNode: Element) {
-  const inst = instanceMap.get(el);
-  if (inst?._teardown) {
-    inst._teardown(removedNode);
+/**
+ * Initializes a scope element by parsing its directive, resolving its
+ * setup function from the registry, and mounting the reactive instance.
+ */
+export function initScopeElement(el: HTMLElement, app: RouseApp) {
+  const scopeValue = rzScope.getConfig(el);
+  if (scopeValue === null) return;
+
+  const { scopeName, rawPayload } = scopeValue;
+
+  let setup: ScopeSetup;
+  let isAlias = false;
+
+  // This enables alias scopes (context aliasing for stores). Makes a store,
+  // or a nested slice of one, the scope instance directly.
+  if (scopeName.startsWith(STORE_PREFIX)) {
+    isAlias = true;
+    setup = () => {
+      // Fetch the live proxy. Must be an object.
+      const storeData = resolveInjection(scopeName, app.stores, true);
+      return storeData || {};
+    };
+  } else if (scopeName === '') {
+    setup = () => ({});
+  } else {
+    const scope = app.registry.get(scopeName);
+    if (!scope) {
+      __DEV__ && warn(`Scope '${scopeName}' is not defined.`);
+      return;
+    }
+    setup = scope;
   }
+
+  const strategies = rzWake.getConfig(el, app);
+
+  attachWakeStrategies(el, strategies, () => {
+    // Data can't be passed to an alias so skip `resolveInjection` in that case
+    const data = isAlias ? {} : resolveInjection(rawPayload, app?.stores) || {};
+    initScopeInstance(el, app, setup, data, { isAlias });
+  });
 }
 
 /**
  * Initializes a scope instance on a specific element.
  */
-export function initScopeInstance(
+function initScopeInstance(
   el: HTMLElement,
   app: RouseApp,
   setup: ScopeSetup,
@@ -39,43 +71,62 @@ export function initScopeInstance(
   instanceMap.set(el, createScope(el, app, setup, params, options));
 }
 
+/**
+ * Tears down the instance on `el`, firing `rz:scope:destroy` first.
+ */
 export function destroyInstance(el: HTMLElement) {
   const inst = instanceMap.get(el);
   if (inst) {
     dispatch(el, 'rz:scope:destroy');
-    // Trigger disconnect() and cleanup
+    // Trigger `disconnect()` and cleanup
     inst._destroy();
     instanceMap.delete(el);
   }
 }
 
 /**
- * Factory to create and manage a scope instance.
+ * Routes a newly added node to its owning scope instance for binding.
  */
-export function createScope(
+export function scanScopeNode(el: HTMLElement, newNode: Element) {
+  instanceMap.get(el)?._scan(newNode);
+}
+
+/**
+ * Routes a removed node to its owning scope instance for teardown.
+ */
+export function teardownScopeNode(el: HTMLElement, removedNode: Element) {
+  instanceMap.get(el)?._teardown(removedNode);
+}
+
+/**
+ * Builds a scope instance on an HTML element. Runs `setup`, dispatches
+ * `rz:scope:init`, then binds the subtree. Setup state and DOM bindings each
+ * get their own `effectScope`, so bindings tear down before the state they
+ * read. Returns an internal handle.
+ */
+function createScope(
   el: HTMLElement,
   app: RouseApp,
   setup: ScopeSetup,
   params: Record<string, any> = {},
   options: { isAlias?: boolean } = {},
 ) {
+  let instance: any;
   let isDestroyed = false;
-  const cleanups: (() => void)[] = [];
+  let binding: {
+    scan: (el: Element) => void;
+    teardown: (el: Element) => void;
+  } | null = null;
 
-  // Create abort signal for use in scopes to provide auto-cleanup
+  const cleanups: VoidFn[] = [];
   const abortCtrl = new AbortController();
 
-  const handle = {
-    instance: null as any,
-    _scan: null as ((el: Element) => void) | null,
-    _teardown: null as ((el: Element) => void) | null,
-    _destroy: () => {
-      if (isDestroyed) return;
-      isDestroyed = true;
-      abortCtrl.abort();
-      // Teardown child effects (DOM) before parent state
-      cleanups.reverse().forEach((fn) => fn());
-    },
+  const destroy = () => {
+    if (isDestroyed) return;
+    isDestroyed = true;
+    abortCtrl.abort();
+    // Reverse order: DOM bindings must dispose before the state they read
+    [...cleanups].reverse().forEach((fn) => fn());
   };
 
   // Inject abort signal to avoid background request if scope is destroyed.
@@ -126,20 +177,16 @@ export function createScope(
       return on(target, events, callback, activeSignal);
     },
     // Allows for triggering a scan from inside the scope
-    scan: (newNode: Element) => {
-      if (handle._scan) handle._scan(newNode);
-    },
+    scan: (newNode: Element) => binding?.scan(newNode),
   };
 
-  // Setup effect scope
-  // Wraps the effects that belong to the scope instance
-  let instance: any;
+  // `effectScope` for setup state. Wrap effects that belong to the scope instance.
   const stopSetupScope = effectScope(() => {
     instance = setup(context) || {};
   });
 
-  // Block async setup functions since they can't be captured in effect scope
-  // which will cause memory leaks. Scopes should be initialized synchronously,
+  // Block async setup functions since they can't be captured in an `effectScope`,
+  // which would result in memory leaks. Scopes should be initialized synchronously,
   // then populated asynchronously (data should be fetched as a side effect).
   if (instance instanceof Promise) {
     stopSetupScope();
@@ -148,30 +195,30 @@ export function createScope(
   }
 
   cleanups.push(stopSetupScope);
-  handle.instance = instance;
 
   // State exists but not bound to DOM yet
   dispatch(el, 'rz:scope:init', { context, instance });
 
-  // Binding effect scope
-  // Wraps the logic that connects the reactive state to the DOM
-  // Captures effects created by bindings (text, atts, etc.) so the UI auto updates
-  if (instance !== undefined) {
-    const stopBindingScope = effectScope(() => {
-      const { unbindDom, scan, teardown } = bindScope(
-        el,
-        instance,
-        app,
-        options.isAlias === true,
-      );
+  // `effectScope` for bindings. Wrap the logic that connects the reactive state
+  // to the DOM. Captures effects created by bindings (text, atts, etc.) so the
+  // UI auto updates.
+  const stopBindingScope = effectScope(() => {
+    const { unbindDom, scan, teardown } = bindScope(
+      el,
+      instance,
+      app,
+      options.isAlias === true,
+    );
+    binding = { scan, teardown };
+    cleanups.push(unbindDom);
+  });
 
-      handle._scan = scan;
-      handle._teardown = teardown;
+  cleanups.push(stopBindingScope);
 
-      cleanups.push(unbindDom);
-    });
-    cleanups.push(stopBindingScope);
-  }
-
-  return handle;
+  return {
+    instance,
+    _scan: (node: Element) => binding?.scan(node),
+    _teardown: (node: Element) => binding?.teardown(node),
+    _destroy: destroy,
+  };
 }

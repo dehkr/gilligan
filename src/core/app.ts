@@ -20,8 +20,8 @@ import {
   walkBoundElements,
 } from '../dom/binder';
 import { dispatch } from '../dom/events';
-import { initObserver, initScopeElement } from '../dom/initializer';
-import { destroyInstance, IS_SCOPE } from '../dom/scope';
+import { initObserver } from '../dom/observer';
+import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
 import { initDomRouter } from '../dom/swapper';
 import { handleFetch } from '../net/fetch-engine';
