@@ -11,7 +11,7 @@ const TIME_KEYS = ['timeout', 'retry-delay'];
 /**
  * Factory for `rz-request` and its variants.
  */
-export function defineRequestConfigDirective(
+function defineRequestConfigDirective(
   slug: DirectiveSlug,
 ): ConfigDirective<Partial<RouseRequest>> {
   return {
@@ -24,7 +24,7 @@ export function defineRequestConfigDirective(
  * Parses a `rz-request*` directive value into a partial RouseRequest config.
  * Shared by `rz-request` and its action-specific variants.
  */
-export function parseRequestConfig(
+function parseRequestConfig(
   value: string | null | undefined,
   app: RouseApp,
 ): Partial<RouseRequest> {

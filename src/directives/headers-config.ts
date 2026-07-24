@@ -8,7 +8,7 @@ import type { ConfigDirective, DirectiveSlug } from '../types';
 /**
  * Factory for `rz-headers` and its variants.
  */
-export function defineHeadersConfigDirective(
+function defineHeadersConfigDirective(
   slug: DirectiveSlug,
 ): ConfigDirective<Record<string, string | null>> {
   return {
@@ -31,7 +31,7 @@ export function defineHeadersConfigDirective(
  * - `rz-headers="#auth-headers"`
  * - `rz-headers='{ "Tenant": 123 }'`
  */
-export function parseHeadersConfig(
+function parseHeadersConfig(
   value: string | null | undefined,
   el: Element,
   app: RouseApp,
