@@ -1,6 +1,6 @@
+import { is } from '../core/is';
 import { parseDeclarations } from '../core/parser';
 import type { BindableValue } from '../types';
-import { is } from './utils';
 
 const prevClasses = new WeakMap<Element, string>();
 const prevStyles = new WeakMap<Element, string>();

@@ -1,5 +1,5 @@
+import { is } from '../core/is';
 import type { RouseRequest } from '../types';
-import { is } from './utils';
 
 /**
  * Extracts values from standalone inputs and attaches them to the

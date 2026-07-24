@@ -1,7 +1,7 @@
-import { is } from '../dom/utils';
 import type { AnyFn, BindableValue, DirectiveSlug, HandlerCtx, Scope } from '../types';
 import { KEY_BLOCKLIST, STORE_PREFIX } from './constants';
 import { err, warn } from './diagnostics';
+import { is } from './is';
 import { parseDataSourcePath } from './parser';
 import { getNestedVal } from './path';
 import { renderCtxOf } from './render-context';

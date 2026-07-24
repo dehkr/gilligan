@@ -2,6 +2,7 @@ import type { RouseApp } from '../core/app';
 import { getDirectiveValue } from '../core/attributes';
 import type { PatchAction } from '../core/constants';
 import { warn } from '../core/diagnostics';
+import { is, isNativeNavigation } from '../core/is';
 import {
   parseFetchSubject,
   parseStoreSubject,
@@ -11,7 +12,6 @@ import { getPathRoot } from '../core/path';
 import { resolveTarget } from '../core/store';
 import { applyTiming } from '../core/timing';
 import { dispatchTrigger } from '../dom/events';
-import { is, isNativeNavigation } from '../dom/utils';
 import { handleFetch } from '../net/fetch-engine';
 import { resolveRequestConfig } from '../net/request';
 import type {

@@ -1,11 +1,11 @@
 import type { RouseApp } from '../core/app';
 import { err, warn } from '../core/diagnostics';
+import { is } from '../core/is';
 import { createKey } from '../core/keys';
 import { isPlainObject } from '../core/state';
 import { resolveStoreUrl } from '../core/store';
 import { dispatch } from '../dom/events';
 import { extractFieldValues } from '../dom/forms';
-import { is } from '../dom/utils';
 import type { RouseRequest, RouseResponse } from '../types';
 import { extractRouseHeaders } from './headers';
 import { PREVENTED, runRequestLifecycle } from './lifecycle';

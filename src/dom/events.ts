@@ -1,10 +1,10 @@
 import { getApp, type RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
+import { isNativeNavigation } from '../core/is';
 import { parseTriggers } from '../core/parser';
 import { applyTiming, isTimeModifier, parseTime } from '../core/timing';
 import type { ActionFn, LifecycleEventMap, TriggerDef, VoidFn } from '../types';
 import { applyModifiers, getListenerOptions, resolveListenerTarget } from './modifiers';
-import { isNativeNavigation } from './utils';
 
 export interface TriggerContext {
   el: Element;
