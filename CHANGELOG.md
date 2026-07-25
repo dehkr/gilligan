@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Warn and skip on a trailing colon in directive values (e.g., `rz-headers="Key: "`) instead of corrupting the key.
 - Fix the array `at()` method returning stale values after a reordering mutation (e.g., `unshift`, `splice`).
 - Prevent a JSON array or primitive routed to a store via `rz-target="@store"` from corrupting store state. Non-object payloads are now rejected with a warning.
+- Fix `rz:scope:destroy` firing before `rz:scope:disconnect`; the destroy event now fires last.
 
 ### Removed
 

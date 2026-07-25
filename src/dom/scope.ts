@@ -71,14 +71,15 @@ function initScopeInstance(
 }
 
 /**
- * Tears down the instance on `el`, firing `rz:scope:destroy` first.
+ * Tears down the instance on `el`. `_destroy()` fires `rz:scope:disconnect`
+ * while unbinding. `rz:scope:destroy` is the final "instance gone" signal,
+ * so it dispatches last.
  */
 export function destroyInstance(el: HTMLElement) {
   const inst = instanceMap.get(el);
   if (inst) {
-    dispatch(el, 'rz:scope:destroy');
-    // Trigger `disconnect()` and cleanup
     inst._destroy();
+    dispatch(el, 'rz:scope:destroy');
     instanceMap.delete(el);
   }
 }
