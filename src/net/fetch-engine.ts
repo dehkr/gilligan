@@ -220,9 +220,8 @@ function routePayload(el: Element, result: RouseResponse, type: 'success' | 'err
   }
 
   // Ignore null/undefined (e.g., 204 No Content), but warn on unhandled complex types
-  if (data !== null && data !== undefined) {
-    const typeName = data?.constructor?.name || typeof data;
-    __DEV__ && warn(`Unsupported payload: '${typeName}'.`);
+  if (data != null) {
+    __DEV__ && warn(`Unsupported payload: '${data?.constructor?.name || typeof data}'.`);
   }
 }
 
