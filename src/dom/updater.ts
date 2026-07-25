@@ -1,9 +1,11 @@
+import { warn } from '../core/diagnostics';
 import { is } from '../core/is';
 import { parseDeclarations } from '../core/parser';
 import type { BindableValue } from '../types';
 
 const prevClasses = new WeakMap<Element, string>();
 const prevStyles = new WeakMap<Element, string>();
+const warnedProps = new WeakMap<Element, Set<string>>();
 
 /**
  * Handles innerText updates.
@@ -211,12 +213,26 @@ export function updateAttr(el: Element, attr: string, value: BindableValue) {
 }
 
 /**
- * Assigns a value to an element property. Use of `Reflect` means it fails
- * silently instead of throwing a `TypeError`.
+ * Assigns a value to an element property. A read-only property or one with no
+ * setter fails silently rather than throwing, so the failure is reported once.
  */
 export function updateProp(el: Element, name: string, value: BindableValue) {
-  // TODO: consider adding warning if set fails
-  Reflect.set(el, name, value);
+  if (Reflect.set(el, name, value)) return;
+  __DEV__ && warnPropOnce(el, name);
+}
+
+/**
+ * Dedupes `rz-prop` repeat warnings per element/property.
+ */
+function warnPropOnce(el: Element, name: string): void {
+  let seen = warnedProps.get(el);
+  if (!seen) {
+    seen = new Set();
+    warnedProps.set(el, seen);
+  }
+  if (seen.has(name)) return;
+  seen.add(name);
+  warn(`rz-prop: cannot set property '${name}'. It is read-only or has no setter.`, el);
 }
 
 /**
