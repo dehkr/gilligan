@@ -298,14 +298,16 @@ export function renderTemplate(
     const parent = template.parentNode;
     if (!parent) return;
 
-    const seen = new Set<string | number>();
     let prev: ChildNode = template;
     let missing = 0;
     let dups = 0;
     let firstDup: string | number | null = null;
 
+    const onMissing = () => missing++;
+    const seen = new Set<string | number>();
+
     for (const plan of normalized.items) {
-      const instanceKey = keyFor(plan, normalized.mode, keyPath, () => missing++);
+      const instanceKey = keyFor(plan, normalized.mode, keyPath, onMissing);
 
       if (seen.has(instanceKey)) {
         dups++;
@@ -338,20 +340,19 @@ export function renderTemplate(
       }
     }
 
-    if (missing > 0 && !keyWarned) {
-      keyWarned = true;
-      __DEV__ &&
+    if (__DEV__) {
+      if (missing > 0 && !keyWarned) {
+        keyWarned = true;
         warn(
           `rz-key: '${keyPath}' could not be resolved on ${missing} item(s). Positional keys used.`,
         );
-    }
-
-    if (dups > 0 && !dupWarned) {
-      dupWarned = true;
-      __DEV__ &&
+      }
+      if (dups > 0 && !dupWarned) {
+        dupWarned = true;
         warn(
           `rz-key: skipped ${dups} item(s) with duplicate '${keyPath}' values. First collision: '${firstDup}'.`,
         );
+      }
     }
 
     for (const [k, rec] of records) {
