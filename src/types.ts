@@ -533,6 +533,30 @@ export type ScopeSetup<
 > = (ctx: ScopeCtx<P, E>) => Scope;
 
 /**
+ * The overload shape shared by `app.on` and `ctx.on`. Listens on a default
+ * target (the app root or the scope host) unless an `EventTarget` is passed
+ * first. An optional `AbortSignal` is combined with the owner's lifetime
+ * signal. Returns a teardown function.
+ */
+export type BoundOn = {
+  <N extends string>(
+    events: N,
+    callback: (
+      ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
+    ) => void,
+    customSignal?: AbortSignal,
+  ): VoidFn;
+  <N extends string>(
+    target: EventTarget,
+    events: N,
+    callback: (
+      ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
+    ) => void,
+    customSignal?: AbortSignal,
+  ): VoidFn;
+};
+
+/**
  * The context object passed into every scope setup function.
  *
  * @template P - The type of the params object.
@@ -552,46 +576,15 @@ export type ScopeCtx<
   stores: StoreManager;
   /** Aborted when the scope is destroyed. Use to clean up scope-defined subscriptions. */
   term: AbortSignal;
-  /** Dispatch a bubbling `CustomEvent` that fires from the scope host element; pass an `EventTarget` first to fire from another element. */
-  dispatch: {
-    <N extends string>(
-      name: N,
-      detail?: N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any,
-      options?: CustomEventInit,
-    ): CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>;
-    <N extends string>(
-      target: EventTarget,
-      name: N,
-      detail?: N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any,
-      options?: CustomEventInit,
-    ): CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>;
-  };
-  /**
-   * Add an event listener that is auto-removed when the scope is destroyed. Listens
-   * on the scope host unless an `EventTarget` is passed first; an optional `AbortSignal`
-   * is combined with the scope's own. Returns a teardown function.
-   */
-  on: {
-    <N extends string>(
-      events: N,
-      callback: (
-        ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
-      ) => void,
-      customSignal?: AbortSignal,
-    ): () => void;
-    <N extends string>(
-      target: EventTarget,
-      events: N,
-      callback: (
-        ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
-      ) => void,
-      customSignal?: AbortSignal,
-    ): () => void;
-  };
   /** Scoped `fetch` surface. Targets the host, aborts on scope destroy, and defaults to `swap: false` unless overridden. */
   fetch: RouseFetch;
-  /** Swap HTML content into a target element using the given swap method. */
-  swap: (content: string, target: Element, method: SwapMethod) => void;
+  /**
+   * Adds an event listener that is auto-removed when the scope is destroyed. Listens
+   * on the scope host unless an `EventTarget` is passed first. An optional `AbortSignal`
+   * is combined with the scope's own (`term`). The programmatic twin of `rz-on` with the
+   * same trigger sources and modifiers. Returns a teardown function.
+   */
+  on: BoundOn;
   /** Scan a newly added DOM subtree for directives and initialize them. */
   scan: (newNode: Element) => void;
 };

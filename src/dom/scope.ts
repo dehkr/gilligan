@@ -8,7 +8,6 @@ import { withMethodAliases } from '../net/request';
 import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
 import { attachWakeStrategies, dispatch, on } from './events';
-import { swap } from './swapper';
 
 export const IS_SCOPE: unique symbol = Symbol('rz_is_scope');
 
@@ -50,9 +49,9 @@ export function initScopeElement(el: HTMLElement, app: RouseApp) {
 
   const strategies = rzWake.getConfig(el, app);
 
-  attachWakeStrategies(el, strategies, () => {
+  attachWakeStrategies(el, app, strategies, () => {
     // Data can't be passed to an alias so skip `resolveInjection` in that case
-    const data = isAlias ? {} : resolveInjection(rawPayload, app?.stores) || {};
+    const data = isAlias ? {} : resolveInjection(rawPayload, app.stores) || {};
     initScopeInstance(el, app, setup, data, { isAlias });
   });
 }
@@ -147,34 +146,19 @@ function createScope(
     host: el,
     appRoot: app.root,
     stores: app.stores,
-    swap,
     term: abortCtrl.signal,
     fetch: scopedFetch,
-    dispatch: (...args: any[]) => {
-      // If the first argument is a string, assume target was omitted
-      const isImplied = typeof args[0] === 'string';
-
-      const target = isImplied ? el : args[0];
-      const name = isImplied ? args[0] : args[1];
-      const detail = isImplied ? args[1] : args[2];
-      const options = isImplied ? args[2] : args[3];
-
-      return dispatch(target, name, detail, options);
-    },
     on: (...args: any[]) => {
       // If the first argument is a string, assume target was omitted
       const isImplied = typeof args[0] === 'string';
-
       const target = isImplied ? el : args[0];
       const events = isImplied ? args[0] : args[1];
       const callback = isImplied ? args[1] : args[2];
       const customSignal = isImplied ? args[2] : args[3];
-
       const activeSignal = customSignal
-        ? AbortSignal.any([abortCtrl.signal, customSignal]) // Optional custom signal
+        ? AbortSignal.any([abortCtrl.signal, customSignal])
         : abortCtrl.signal;
-
-      return on(target, events, callback, activeSignal);
+      return on(target, events, callback, activeSignal, app);
     },
     // Allows for triggering a scan from inside the scope
     scan: (newNode: Element) => binding?.scan(newNode),

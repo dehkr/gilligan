@@ -89,12 +89,14 @@ function attachListener<D = any>(
  * the synthetic-event registry (via `dispatchTrigger` or `attachListener`),
  * and returns a single aggregate cleanup that tears them all down.
  *
- * Backs `ctx.on` for scopes and is also exported for non-scope
- * code that needs the same trigger semantics as the declarative directives.
+ * Backs `app.on` and `ctx.on`, which bind it to an app- or scope-lifetime
+ * abort signal. The optional `app` is threaded to the trigger engine so
+ * trigger sources like `ready` resolve the owning instance without a
+ * DOM lookup (and work on non-element targets such as `window`).
  *
  * @example
- * on(el, 'click.debounce.500ms', handleClick);
- * on(el, 'page-visible online', refetch);
+ * ctx.on(el, 'click.debounce.500ms', handleClick);
+ * app.on('page-visible online', sync);
  */
 export function on<N extends string>(
   target: EventTarget,
@@ -103,6 +105,7 @@ export function on<N extends string>(
     ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
   ) => void,
   abortSignal?: AbortSignal,
+  app?: RouseApp,
 ): VoidFn;
 
 export function on(
@@ -110,7 +113,12 @@ export function on(
   events: string,
   callback: (ev: CustomEvent<any>) => void,
   abortSignal?: AbortSignal,
+  app?: RouseApp,
 ): VoidFn {
+  // Bail before attaching on an already-aborted signal. Otherwise the
+  // listeners attach and the abort event never fires to remove them.
+  if (abortSignal?.aborted) return () => {};
+
   const triggers = parseTriggers(events);
   if (triggers.length === 0) return () => {};
 
@@ -119,7 +127,7 @@ export function on(
   for (const trigger of triggers) {
     const cleanup = dispatchTrigger(trigger, {
       el: target as Element,
-      app: undefined,
+      app,
       action: callback as ActionFn,
     });
     if (cleanup) cleanups.push(cleanup);
@@ -199,6 +207,7 @@ export function dispatchTrigger(
  */
 export function attachWakeStrategies(
   el: Element,
+  app: RouseApp,
   triggers: TriggerDef[],
   onWake: VoidFn,
 ): VoidFn {
@@ -232,7 +241,7 @@ export function attachWakeStrategies(
       satisfy();
     };
 
-    const cleanup = dispatchTrigger(trigger, { el, action, app: undefined });
+    const cleanup = dispatchTrigger(trigger, { el, action, app });
     if (cleanup) cleanups.push(cleanup);
   }
 

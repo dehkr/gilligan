@@ -19,7 +19,7 @@ import {
   teardownGlobalBindings,
   walkBoundElements,
 } from '../dom/binder';
-import { dispatch } from '../dom/events';
+import { dispatch, on } from '../dom/events';
 import { initObserver } from '../dom/observer';
 import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
@@ -28,6 +28,7 @@ import { handleFetch } from '../net/fetch-engine';
 import { withMethodAliases } from '../net/request';
 import { fallbackResponse } from '../net/response';
 import type {
+  BoundOn,
   ErrorInterceptor,
   InterceptorPhase,
   RequestInterceptor,
@@ -89,6 +90,20 @@ export class RouseApp {
   public registry: ScopeRegistry;
   public isReady: boolean;
   public fetch: RouseFetch;
+  /**
+   * Adds an event listener that is auto-removed when the app is destroyed. Listens
+   * on `app.root` unless an `EventTarget` is passed first. An optional `AbortSignal`
+   * is combined with the app's own. The programmatic twin of `rz-on` with the same
+   * trigger sources and modifiers. Safe to call before `app.start()`.
+   *
+   * @returns A teardown closure that removes the listener early.
+   *
+   * @example
+   * app.on('page-visible', refetch);
+   * app.on('click.debounce.300ms', onClick);
+   * app.on(window, 'online offline', sync);
+   */
+  public on: BoundOn;
   public _interceptors: {
     request: Set<RequestInterceptor>;
     response: Set<ResponseInterceptor>;
@@ -96,8 +111,9 @@ export class RouseApp {
   };
 
   private _hasStarted = false;
+  private _destroyed = false;
   private _observer?: MutationObserver;
-  private _abortController?: AbortController;
+  private _abortController: AbortController;
 
   constructor(config: RouseConfig = {}) {
     const rootEl =
@@ -139,6 +155,25 @@ export class RouseApp {
 
     // Bound + alias-decorated so `app.fetch.post(url)` resolves to this instance
     this.fetch = withMethodAliases(this._fetch.bind(this));
+
+    // App-lifetime signal, created here instead of in `start` so `app.on` can bind
+    // before `app.start()` is called. Is aborted in `destroy`.
+    this._abortController = new AbortController();
+
+    // A lifecycle-safe listener bound to the app-lifetime signal, auto-removed on `destroy`
+    this.on = (...args: any[]): VoidFn => {
+      const implied = typeof args[0] === 'string';
+      const target = implied ? this.root : args[0];
+      const events = implied ? args[0] : args[1];
+      const callback = implied ? args[1] : args[2];
+      const customSignal = implied ? args[2] : args[3];
+
+      const signal = customSignal
+        ? AbortSignal.any([this._abortController.signal, customSignal])
+        : this._abortController.signal;
+
+      return on(target, events, callback, signal, this);
+    };
   }
 
   /**
@@ -252,20 +287,23 @@ export class RouseApp {
    * Starts the Rouse app instance. Sets up the global fetch handler.
    */
   start() {
+    if (this._destroyed) {
+      __DEV__ &&
+        warn(
+          `'start()' called on a destroyed app. Ignoring. Create a new instance instead.`,
+        );
+      return;
+    }
     if (this._hasStarted) {
       __DEV__ && warn(`'start()' called multiple times. Ignoring.`);
       return;
     }
 
     this._hasStarted = true;
-    this._abortController = new AbortController();
 
     dispatch(this.root, 'rz:app:start', { app: this });
 
-    // Watch for HTML fetch responses
     initDomRouter(this, this._abortController.signal);
-
-    // Watch for JSON fetch responses
     initStoreRouter(this, this._abortController.signal);
 
     // Scan for store <script> elements to ensure state exists first
@@ -279,11 +317,8 @@ export class RouseApp {
       }
     });
 
-    // Start the scoped mutation observer
     this._observer = initObserver(this);
     this._observer.observe(this.root, { childList: true, subtree: true });
-
-    // Initial scans
 
     const scopes = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
     scopes.forEach((el) => {
@@ -309,12 +344,7 @@ export class RouseApp {
 
     requestAnimationFrame(() => {
       this.isReady = true;
-      this.root.dispatchEvent(
-        new CustomEvent('rz:app:ready', {
-          bubbles: true,
-          detail: { app: this },
-        }),
-      );
+      dispatch(this.root, 'rz:app:ready', { app: this });
     });
   }
 
@@ -323,37 +353,28 @@ export class RouseApp {
    * stops timers, and frees memory.
    */
   destroy() {
-    if (!this._hasStarted) return;
+    if (!this._hasStarted || this._destroyed) return;
+    this._destroyed = true;
 
-    // Disconnect the mutation observer
     this._observer?.disconnect();
 
-    // Remove global event listeners
-    this._abortController?.abort();
-
-    // Unmount all scopes
     const scopes = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
     scopes.forEach(destroyInstance);
 
-    // Cleanup network directives
     for (const d of [rzFetch, rzPush, rzPull]) {
       queryTargets(this.root, directiveSelector(d.slug)).forEach(d.teardown);
     }
-
-    // Cleanup store directive side-effects
     for (const el of this.stores.elements()) {
       rzStore.teardown(el as HTMLScriptElement);
     }
-
-    // Cleanup global bindings
     teardownGlobalBindings(this.root);
 
-    // Remove the root indicator
-    this.root.removeAttribute('data-rouse-app');
-
-    this._hasStarted = false;
-
     dispatch(this.root, 'rz:app:destroy', { app: this });
+
+    // Release after the destroy event so app.on('rz:app:destroy') fires and
+    // getApp(e.target) still resolves.
+    this.root.removeAttribute('data-rouse-app');
+    this._abortController.abort();
   }
 }
 

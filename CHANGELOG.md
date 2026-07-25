@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consume the `Rouse-Trigger` response header on `rz-push`/`rz-pull` responses, dispatching the named event from the trigger element.
 - Add loading affordances (`rz-loading` class, `aria-busy="true"`) to the trigger element for the duration of a push/pull.
 - Make `rz:store:sync:before` cancelable with a mutable `payload` on all paths (push, pull, and fetch `@store` deposits); listeners can reassign or mutate `detail.payload` before reconciliation.
+- Add the `app.on()` listener method that defaults to `app.root` and auto-removes on `app.destry()`.
 
 ### Changed
 
@@ -29,14 +30,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `.once` modifier bug that prevented events with multiple modifiers from firing.
 - Fix `rz-fetch` on forms ignoring a submit button's `formaction` when no other URL source was set.
 - Warn and skip on a trailing colon in directive values (e.g., `rz-headers="Key: "`) instead of corrupting the key.
-- Fix the array `at()` method returning stale values after a reordering mutation (e.g. `unshift`, `splice`).
-- Prevent a JSON array or primitive routed to a store via `rz-target="@store"` corrupting store state; reject non-object payloads with a warning.
+- Fix the array `at()` method returning stale values after a reordering mutation (e.g., `unshift`, `splice`).
+- Prevent a JSON array or primitive routed to a store via `rz-target="@store"` from corrupting store state. Non-object payloads are now rejected with a warning.
 
 ### Removed
 
 - **Breaking:** Remove `trigger` and `effectScope` from public exports.
 - **Breaking:** Remove `rz:store:sync:error`; a failed sync is now reported on the request axis by `rz:push:error`/`rz:pull:error`.
 - **Breaking:** Remove the `dispatchEvents` request option (and its `dispatch-events` declarative key).
+- **Breaking:** Remove the importable `on` helper. Use `app.on`/`ctx.on`.
+- **Breaking:** Remove `dispatch` and `swap` from the scope context. Use importable `dispatch`/`swap`, which take an explicit target.
 
 ## [0.10.0] - 2026-07-08
 
