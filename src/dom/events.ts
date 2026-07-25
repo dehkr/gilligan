@@ -86,7 +86,7 @@ function attachListener<D = any>(
 
 /**
  * Parses a multi-event + modifier string, dispatches each trigger through
- * the synthetic-event registry (via `dispatchTrigger` or `attachListener`),
+ * the trigger-source registry (via `dispatchTrigger` or `attachListener`),
  * and returns a single aggregate cleanup that tears them all down.
  *
  * Backs `app.on` and `ctx.on`, which bind it to an app- or scope-lifetime
@@ -143,12 +143,12 @@ export function on(
 }
 
 /**
- * Routes a single trigger to its handler. Synthetic events (`interval`,
- * `visible`, `online`, etc.) go through the `syntheticEvents` registry.
+ * Routes a single trigger to its handler. Trigger sources (`interval`,
+ * `ready`, `online`, etc.) go through the `triggerSources` registry.
  * Standard DOM events fall through to `attachListener`.
  *
  * Timed execution (debounce/throttle) is applied here once, before
- * dispatch, so synthetic and DOM events both receive timed actions.
+ * dispatch, so trigger sources and DOM events both receive timed actions.
  * The returned cleanup also cancels any pending timed calls.
  *
  * Native navigation is suppressed for form submits and anchor clicks
@@ -169,7 +169,7 @@ export function dispatchTrigger(
     };
   };
 
-  const handler = syntheticEvents[trigger.event];
+  const handler = triggerSources[trigger.event];
   if (handler) {
     const cleanup = handler({
       ...base,
@@ -253,13 +253,13 @@ export function attachWakeStrategies(
   };
 }
 
-export type SyntheticEventHandler = (ctx: TriggerContext) => VoidFn | null;
+export type TriggerSourceHandler = (ctx: TriggerContext) => VoidFn | null;
 
 /**
- * Universal synthetic events available to directives and `on`.
- * Store-specific events (`edit`) stay inline in rz-push.
+ * Universal trigger sources available to directives and `app.on`/`ctx.on`.
+ * Store-specific sources (`edit`) stay inline in `rz-push`.
  */
-export const syntheticEvents: Record<string, SyntheticEventHandler> = {
+export const triggerSources: Record<string, TriggerSourceHandler> = {
   /** Fires when all assets (images, etc.) are fully loaded. */
   load: ({ action }) => {
     if (document.readyState === 'complete') {
@@ -283,10 +283,10 @@ export const syntheticEvents: Record<string, SyntheticEventHandler> = {
   },
 
   /** Fires once after a specified period (`setTimeout`). */
-  timeout: (ctx) => attachTimingEvent('timeout', ctx),
+  timeout: (ctx) => attachTimingSource('timeout', ctx),
 
   /** Repeating timer (`setInterval`). */
-  interval: (ctx) => attachTimingEvent('interval', ctx),
+  interval: (ctx) => attachTimingSource('interval', ctx),
 
   /** Explicit no-op (opts the directive out of all auto-binding). */
   none: () => null,
@@ -382,9 +382,9 @@ export const syntheticEvents: Record<string, SyntheticEventHandler> = {
 };
 
 /**
- * Helper for the `timeout` and `interval` synthetic event functions.
+ * Helper for the `timeout` and `interval` trigger sources.
  */
-function attachTimingEvent(type: 'timeout' | 'interval', ctx: TriggerContext) {
+function attachTimingSource(type: 'timeout' | 'interval', ctx: TriggerContext) {
   const timeModifier = ctx.modifiers.find(isTimeModifier);
 
   if (!timeModifier) {
