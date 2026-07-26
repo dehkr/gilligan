@@ -3,6 +3,7 @@ import {
   DEFAULT_SWAP_METHOD,
   isSwapMethod,
   STORE_PREFIX,
+  SWAP_METHODS,
   type SwapOperation,
   type TargetConfig,
 } from '../core/constants';
@@ -61,10 +62,14 @@ function resolveRouteTargets(
     if (store) {
       stores.push(store.slice(1));
     } else if (val) {
-      swaps.push({
-        method: isSwapMethod(key) ? key : DEFAULT_SWAP_METHOD,
-        targets: queryEls(appRoot, val),
-      });
+      const method = isSwapMethod(key) ? key : DEFAULT_SWAP_METHOD;
+      __DEV__ &&
+        method !== key &&
+        warn(
+          `rz-target: unknown swap method '${key}'. Using '${DEFAULT_SWAP_METHOD}'. Methods are case-sensitive: ${SWAP_METHODS.join(', ')}.`,
+          hostEl,
+        );
+      swaps.push({ method, targets: queryEls(appRoot, val) });
     } else if (isSwapMethod(key)) {
       swaps.push({ targets: [hostEl], method: key });
     } else {
