@@ -67,7 +67,6 @@ interface ResolvedConfig {
 
 const appInstances = new WeakMap<HTMLElement, RouseApp>();
 
-// Wire the bound directives the binder will scan for
 registerBoundDirectives(
   rzAttr,
   rzClass,
@@ -81,7 +80,19 @@ registerBoundDirectives(
 );
 
 /**
- * Core class for instantiating Rouse app instances.
+ * A Rouse application instance. Holds the root element, the stores, the
+ * registered scopes, the network interceptors, and the `fetch` and `on` helpers.
+ *
+ * Creating an app touches the DOM only to claim the root; no directives are read
+ * until `start()`, so stores and scopes can be registered in any order first.
+ * A root hosts one app at a time, and the constructor throws rather than attach
+ * a second.
+ *
+ * @example
+ * const app = rouse({ root: '#app', baseUrl: '/api' });
+ * app.store('cart', { items: [] });
+ * app.scope({ counter, cart });
+ * app.start();
  */
 export class RouseApp {
   public readonly root: HTMLElement;
@@ -115,6 +126,12 @@ export class RouseApp {
   private _observer?: MutationObserver;
   private _abortController: AbortController;
 
+  /**
+   * Resolves the root, marks it with `data-rouse-app`, and wires the stores, scopes,
+   * interceptors, and app-lifetime `AbortController`.
+   *
+   * @throws If the root cannot be found, or already has an app attached.
+   */
   constructor(config: RouseConfig = {}) {
     const rootEl =
       typeof config.root === 'string'
@@ -177,19 +194,21 @@ export class RouseApp {
   }
 
   /**
-   * Registers one or multiple scopes to the application.
+   * Registers scope setup functions by name. `rz-scope="counter"` resolves against
+   * the names registered here.
+   *
+   * Elements are wired as they are scanned, and a name that is not registered before
+   * `start()` is skipped with a warning rather than picked up once it arrives.
+   *
+   * @param nameOrScopes - A scope name, or an object of names mapped to setup functions.
+   * @param setup - The setup function. Only needed when the first argument is a name.
+   * @returns The app, so calls can be chained.
+   * @throws If the registration is not a plain object, or a value is not a function.
    *
    * @example
-   * // Single registration
    * app.scope('counter', counter);
-   * app.scope('cart', cart);
-   *
-   * @example
    * // Object shorthand for bulk registration
    * app.scope({ counter, cart });
-   *
-   * @param nameOrScopes - Either the unique string name of a scope, or an object mapping names to setup functions.
-   * @param setup - The setup function (only required when the first argument is a string).
    */
   scope<P extends Record<string, any>>(name: string, setup: ScopeSetup<P>): this;
   scope(scopes: Record<string, ScopeSetup<any>>): this;
@@ -218,10 +237,37 @@ export class RouseApp {
   }
 
   /**
-   * Creates a new reactive store.
+   * Creates a reactive store and returns its data proxy.
+   *
+   * A store is one flat object. Data, getters, and methods live side by side.
+   * Getters are cached as computeds bound to the proxy and must stay pure. Work
+   * that needs cleanup belongs in a scope instead.
+   *
+   * Only plain, JSON-serializable data is synced. Methods and getters are untouched
+   * by snapshots, push bodies, `reset()`, and incoming server state.
+   *
+   * @template T - Shape of the store's data, getters, and methods.
+   * @param name - Unique name. Referenced as `@name` in directives.
+   * @param data - Initial state. Made reactive, and kept as the snapshot `reset()` restores.
+   * @param config - How the store syncs: URL, push and pull methods, patch action, rollback behavior.
+   * @returns The store's reactive proxy.
+   * @throws If a store of this name already exists.
+   *
+   * @example
+   * const cart = app.store('cart', {
+   *   items: [],
+   *   get total() {
+   *     return this.items.reduce((sum, item) => sum + item.price, 0);
+   *   },
+   *   clear() {
+   *     this.items = [];
+   *   },
+   * }, { url: '/api/cart' });
+   *
+   * cart.items.push(item);
    */
-  store<T extends object>(name: string, state: T, config?: Partial<SyncConfig>) {
-    return this.stores.create<T>(name, state, config);
+  store<T extends object>(name: string, data: T, config?: Partial<SyncConfig>) {
+    return this.stores.create<T>(name, data, config);
   }
 
   /**
@@ -236,8 +282,7 @@ export class RouseApp {
    *   config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
    *   return config;
    * });
-   *
-   * // Later, e.g. in a scope's disconnect():
+   * // Later, in a scope's `disconnect()`:
    * remove();
    */
   interceptor(phase: 'request', fn: RequestInterceptor): VoidFn;
@@ -255,7 +300,7 @@ export class RouseApp {
   }
 
   /**
-   * Trigger a Rouse network request.
+   * Triggers a Rouse network request.
    *
    * @param resource - The URL to fetch.
    * @param options - Network configuration, including the DOM `target`.
@@ -284,7 +329,15 @@ export class RouseApp {
   }
 
   /**
-   * Starts the Rouse app instance. Sets up the global fetch handler.
+   * Brings the app to life: reads the markup under `root`, creates stores, mounts
+   * scopes, binds directives, and starts watching for elements added later.
+   *
+   * Fires `rz:app:start` before reading anything, and `rz:app:ready` on the next
+   * animation frame, once the initial bindings have run and `isReady` is true.
+   * Calling it a second time, or after `destroy()`, warns and does nothing.
+   *
+   * @example
+   * document.addEventListener('DOMContentLoaded', () => app.start());
    */
   start() {
     if (this._destroyed) {
@@ -349,8 +402,12 @@ export class RouseApp {
   }
 
   /**
-   * Completely tears down the app instance, unmounts scopes,
-   * stops timers, and frees memory.
+   * Shuts the app down: stops watching the DOM, unmounts every scope, unbinds
+   * every directive, then fires `rz:app:destroy` and aborts the app's signal.
+   *
+   * This is final. Aborting drops `app.on` listeners and any request still in
+   * flight, and `start()` will not run again. Does nothing if the app never
+   * started or is already gone.
    */
   destroy() {
     if (!this._hasStarted || this._destroyed) return;
@@ -379,7 +436,16 @@ export class RouseApp {
 }
 
 /**
- * Finds the parent app instance for any child element.
+ * Finds the app that owns an element by walking up to the nearest app root.
+ *
+ * Pass `expected` to check if the element exists within a specific app instance.
+ *
+ * @param el - An element somewhere inside an app root.
+ * @param expected - The app the element is required to belong to.
+ * @returns The owning app, or `undefined` if there is none or it is not `expected`.
+ *
+ * @example
+ * if (getApp(el, this)) mountGlobalBinding(el, this);
  */
 export function getApp(el: Element, expected?: RouseApp): RouseApp | undefined {
   const root = el.closest<HTMLElement>('[data-rouse-app]');
@@ -398,7 +464,16 @@ export function getApp(el: Element, expected?: RouseApp): RouseApp | undefined {
 }
 
 /**
- * Main entry point for the framework.
+ * Creates a Rouse app instance. The standard entry point; equivalent
+ * to `new RouseApp(config)`.
+ *
+ * @param config - App-wide configuration, fixed once the app exists.
+ * @returns A new app, ready for stores and scopes and waiting on `start()`.
+ *
+ * @example
+ * const app = rouse({ root: '#app' });
+ * app.scope('counter', counter);
+ * app.start();
  */
 export function rouse(config: RouseConfig = {}): RouseApp {
   return new RouseApp(config);
