@@ -49,34 +49,25 @@ function resolveRouteTargets(
     return { swaps, stores };
   }
 
+  // Each pair is one of four forms: '@store' (on either side), 'method: selector',
+  // a bare method (targets the host element), or a bare selector (default method).
+  // Store targets only collect a name for the JSON router; they never DOM swap.
   for (const [key, val] of parsed) {
-    // Store target: collect the name for the JSON store router, not a DOM swap.
     const store = key.startsWith(STORE_PREFIX)
       ? key
       : val?.startsWith(STORE_PREFIX)
         ? val
         : '';
-
-    // @store target
     if (store) {
       stores.push(store.slice(1));
-    }
-
-    // "Method: Selector"
-    else if (val) {
+    } else if (val) {
       swaps.push({
         method: isSwapMethod(key) ? key : DEFAULT_SWAP_METHOD,
         targets: queryEls(appRoot, val),
       });
-    }
-
-    // "Method" alone (uses host element)
-    else if (isSwapMethod(key)) {
+    } else if (isSwapMethod(key)) {
       swaps.push({ targets: [hostEl], method: key });
-    }
-
-    // "Selector" alone (uses default method)
-    else {
+    } else {
       swaps.push({ targets: queryEls(appRoot, key), method: DEFAULT_SWAP_METHOD });
     }
   }

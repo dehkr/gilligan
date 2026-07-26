@@ -35,7 +35,10 @@ function modelDefaultTrigger(el: Element): TriggerDef | null {
 }
 
 /**
- * Two-way binding for form elements.
+ * Wires two-way binding on an editable element: an effect writes resolved state
+ * into the element, and each trigger writes the element's value back. A bare
+ * subject (no `trigger: subject` pair) infers its trigger via `modelDefaultTrigger`,
+ * and binds nothing when the element has no default.
  */
 function bind(
   el: Element,
