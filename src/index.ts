@@ -1,5 +1,5 @@
 export { computed, effect, signal } from 'alien-signals';
-export { type RouseConfig, rouse } from './core/app';
+export { type RouseConfig, rouse, rouse as default } from './core/app';
 export { createKey } from './core/keys';
 export { dispatch } from './dom/events';
 export { swap } from './dom/swapper';
