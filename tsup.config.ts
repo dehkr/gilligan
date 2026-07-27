@@ -1,7 +1,7 @@
 import { defineConfig, type Options } from 'tsup';
 
 const baseConfig: Options = {
-  entry: ['src/index.ts'],
+  entry: { rouse: 'src/index.ts' },
   format: ['esm'],
   outDir: 'dist',
   noExternal: ['alien-signals'],

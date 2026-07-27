@@ -32,16 +32,16 @@
     "url": "git+https://github.com/dehkr/rouse.git"
   },
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/rouse.js",
+  "types": "./dist/rouse.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/rouse.d.ts",
+      "import": "./dist/rouse.js"
     },
     "./min": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.min.js"
+      "types": "./dist/rouse.d.ts",
+      "import": "./dist/rouse.min.js"
     }
   },
   "files": [
