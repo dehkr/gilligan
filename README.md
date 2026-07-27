@@ -46,3 +46,53 @@ Attributes and the JavaScript API share the same engine. They mix freely. Start 
 ### Wiring in HTML, logic in JavaScript
 
 Directive values are declarative: they describe paths, triggers, and targets. Logic stays in plain JavaScript, where it can be organized, typed, tested, and reused.
+
+## Installation
+
+Rouse ships as ES modules only, in two builds:
+
+| Build | File | Use |
+| --- | --- | --- |
+| Development | `dist/rouse.js` | Default. Emits warnings and errors for misused directives, missing targets, and invalid values. |
+| Production | `dist/rouse.min.js` | Minified, with all diagnostics stripped. |
+
+Start with the development build. Switch to the minified one when you deploy.
+
+### From npm
+
+```bash
+npm install rousejs
+```
+
+```js
+import { rouse } from 'rousejs';
+```
+
+The package resolves to the development build by default. Import the `min` subpath to drop diagnostics from your production bundle:
+
+```js
+import { rouse } from 'rousejs/min';
+```
+
+Types are bundled, so no additional setup for TypeScript is necessary.
+
+### From a CDN
+
+Import Rouse inside a module script and start the app. Rouse has no global side effects, so nothing runs until you call `rouse()`.
+
+```html
+<script type="module">
+  import { rouse } from 'https://cdn.jsdelivr.net/npm/rousejs@0.11.0/dist/rouse.js';
+  // Or use UNPKG: https://unpkg.com/rousejs@0.11.0/dist/rouse.js
+
+  const app = rouse();
+  app.start();
+</script>
+```
+
+Swap in `rouse.min.js` for production:
+
+```text
+https://cdn.jsdelivr.net/npm/rousejs@0.11.0/dist/rouse.min.js
+https://unpkg.com/rousejs@0.11.0/dist/rouse.min.js
+```
