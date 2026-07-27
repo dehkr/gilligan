@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [0.10.0] - 2026-07-27
+
 ### Added
 
 - Add new key modifiers: `home`, `end`, `pageup`, `pagedown`, `insert`, `f1`–`f12`, and `escape` as an alias of `esc`.
@@ -14,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consume the `Rouse-Trigger` response header on `rz-push`/`rz-pull` responses, dispatching the named event from the trigger element.
 - Add loading affordances (`rz-loading` class, `aria-busy="true"`) to the trigger element for the duration of a push/pull.
 - Make `rz:store:sync:before` cancelable with a mutable `payload` on all paths (push, pull, and fetch `@store` deposits); listeners can reassign or mutate `detail.payload` before reconciliation.
-- Add the `app.on()` listener method that defaults to `app.root` and auto-removes on `app.destry()`.
+- Add the `app.on()` listener method that defaults to `app.root` and auto-removes on `app.destroy()`.
 
 ### Changed
 
@@ -32,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Warn and skip on a trailing colon in directive values (e.g., `rz-headers="Key: "`) instead of corrupting the key.
 - Fix the array `at()` method returning stale values after a reordering mutation (e.g., `unshift`, `splice`).
 - Prevent a JSON array or primitive routed to a store via `rz-target="@store"` from corrupting store state. Non-object payloads are now rejected with a warning.
-- Fix `rz:scope:destroy` firing before `rz:scope:disconnect`; the destroy event now fires last.
+- Fire the `rz:scope:destroy` lifecycle event after `rz:scope:disconnect`.
 
 ### Removed
 
