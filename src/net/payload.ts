@@ -18,12 +18,11 @@ export function preparePayload(url: string, options: RouseRequest, baseUrl: stri
     if (isAbsoluteUrl(url)) {
       urlObj = new URL(url);
     } else {
-      let base: string;
-      if (baseUrl) {
-        base = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-      } else {
-        base = typeof document !== 'undefined' ? document.baseURI : 'http://localhost';
-      }
+      const base = baseUrl
+        ? baseUrl.endsWith('/')
+          ? baseUrl
+          : `${baseUrl}/`
+        : document.baseURI;
       urlObj = new URL(url, base);
     }
   } catch (err) {
@@ -130,7 +129,7 @@ function isNativeBinaryBody(body: unknown): body is BodyInit {
     body instanceof Blob || // File inherits from Blob, so this catches both
     body instanceof ArrayBuffer ||
     ArrayBuffer.isView(body) || // Catches DataView and TypedArray
-    (typeof ReadableStream !== 'undefined' && body instanceof ReadableStream)
+    body instanceof ReadableStream
   );
 }
 

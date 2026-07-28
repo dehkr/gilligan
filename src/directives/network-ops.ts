@@ -93,8 +93,7 @@ function applySubmitterOverrides(
   e?: Event,
 ): RouseRequest {
   const opts: RouseRequest = { ...baseOpts };
-  const sub =
-    typeof SubmitEvent !== 'undefined' && e instanceof SubmitEvent ? e.submitter : null;
+  const sub = e instanceof SubmitEvent ? e.submitter : null;
 
   if (sub) {
     opts.url = sub.getAttribute('formaction') ?? opts.url;
