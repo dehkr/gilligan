@@ -3,11 +3,11 @@ export const ITEM_PREFIX = '%';
 export const KEY_BLOCKLIST = ['__proto__', 'constructor', 'prototype'];
 
 /** Carries the current render item on an `rz-render` instance context. */
-export const ITEM_KEY: unique symbol = Symbol('rz_item');
+export const ITEM_KEY: unique symbol = Symbol('rz.item');
 /** Carries per-instance render metadata (`index`, `key`). */
-export const ITEM_META_KEY: unique symbol = Symbol('rz_item_meta');
+export const ITEM_META_KEY: unique symbol = Symbol('rz.itemMeta');
 /** Points an instance context back at the scope/store state it layers over. */
-export const RENDER_PARENT: unique symbol = Symbol('rz_render_parent');
+export const RENDER_PARENT: unique symbol = Symbol('rz.renderParent');
 
 /** List of valid HTML DOM swap methods. */
 export const SWAP_METHODS = [

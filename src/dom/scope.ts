@@ -9,7 +9,7 @@ import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
 import { attachWakeStrategies, dispatch, on } from './events';
 
-export const IS_SCOPE: unique symbol = Symbol('rz_is_scope');
+export const IS_SCOPE: unique symbol = Symbol('rz.scope');
 
 type ScopeHandle = ReturnType<typeof createScope>;
 const instanceMap = new WeakMap<HTMLElement, ScopeHandle>();

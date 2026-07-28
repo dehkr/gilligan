@@ -1,7 +1,7 @@
 import { dispatch } from '../dom/events';
 import type { RouseResponse } from '../types';
 
-export const PREVENTED = Symbol('rz_prevented');
+export const PREVENTED = Symbol('rz.prevented');
 
 export interface LifecycleHandle {
   settle: (result: RouseResponse) => void;

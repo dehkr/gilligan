@@ -2,7 +2,7 @@ import { computed, signal, trigger } from 'alien-signals';
 import { methodIntercepts } from './arrays';
 import { dirtyTrackers, getRaw, objectRootKeys, proxiable, reactive } from './reactive';
 
-export const ITERATION_KEY = Symbol('rz_iteration');
+export const ITERATION_KEY = Symbol('rz.iteration');
 
 const signalCache = new WeakMap<object, Map<string | symbol, any>>();
 const computedCache = new WeakMap<object, Map<string | symbol, () => any>>();
