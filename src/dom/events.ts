@@ -13,6 +13,8 @@ export interface TriggerContext {
   action: ActionFn;
 }
 
+export type TriggerSourceHandler = (ctx: TriggerContext) => VoidFn | null;
+
 /**
  * Dispatches a custom event from an element.
  *
@@ -253,8 +255,6 @@ export function attachWakeStrategies(
   };
 }
 
-export type TriggerSourceHandler = (ctx: TriggerContext) => VoidFn | null;
-
 /**
  * Universal trigger sources available to directives and `app.on`/`ctx.on`.
  * Store-specific sources (`edit`) stay inline in `rz-push`.
@@ -266,8 +266,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
       action();
       return null;
     }
-    window.addEventListener('load', action, { once: true });
-    return () => window.removeEventListener('load', action);
+    return attachWindowEvent('load', action);
   },
 
   /** Fires when the RouseApp instance is fully initialized. */
@@ -346,38 +345,10 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     return () => observer.disconnect();
   },
 
-  /** Aggregate proxy for 'mouseover', 'focusin', or 'touchstart'. Supports `.once`. */
-  interact: ({ el, modifiers, action }) => {
-    const isOnce = modifiers.includes('once');
-    const triggers = ['mouseover', 'focusin', 'touchstart'];
-    let hasFired = false;
-
-    const handler = (e: Event) => {
-      if (isOnce && hasFired) return;
-      hasFired = true;
-      // Pass the event along so modifiers or the underlying action can use it
-      action(e as any);
-      if (isOnce) cleanup();
-    };
-
-    const cleanup = () => {
-      triggers.forEach((evt) => el.removeEventListener(evt, handler));
-    };
-    triggers.forEach((evt) => el.addEventListener(evt, handler, { passive: true }));
-
-    return cleanup;
-  },
-
   /** window.requestIdleCallback (one-time execution). */
   idle: ({ action }) => {
-    if (typeof window.requestIdleCallback === 'function') {
-      const id = window.requestIdleCallback(() => action());
-      return () => window.cancelIdleCallback(id);
-    }
-
-    // Safari fallback
-    const id = window.setTimeout(action, 1);
-    return () => window.clearTimeout(id);
+    const id = window.requestIdleCallback(() => action());
+    return () => window.cancelIdleCallback(id);
   },
 };
 
@@ -406,7 +377,7 @@ function attachTimingSource(type: 'timeout' | 'interval', ctx: TriggerContext) {
  * Subscribes to a window-level event and returns a cleanup that
  * removes the listener.
  */
-function attachWindowEvent(event: string, action: VoidFn): VoidFn {
+function attachWindowEvent(event: string, action: ActionFn): VoidFn {
   window.addEventListener(event, action);
 
   return () => {
