@@ -1,35 +1,21 @@
 import { getApp } from '../core/app';
 
-const keyMap: Record<string, string> = {
-  enter: 'Enter',
-  esc: 'Escape',
-  escape: 'Escape',
+const keyTokens = new Set(
+  'enter tab delete backspace home end pageup pagedown insert f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12'.split(
+    ' ',
+  ),
+);
+
+const keyAliases: Record<string, string> = {
+  esc: 'escape',
   space: ' ',
-  up: 'ArrowUp',
-  down: 'ArrowDown',
-  left: 'ArrowLeft',
-  right: 'ArrowRight',
-  tab: 'Tab',
-  delete: 'Delete',
-  backspace: 'Backspace',
-  home: 'Home',
-  end: 'End',
-  pageup: 'PageUp',
-  pagedown: 'PageDown',
-  insert: 'Insert',
-  f1: 'F1',
-  f2: 'F2',
-  f3: 'F3',
-  f4: 'F4',
-  f5: 'F5',
-  f6: 'F6',
-  f7: 'F7',
-  f8: 'F8',
-  f9: 'F9',
-  f10: 'F10',
-  f11: 'F11',
-  f12: 'F12',
+  up: 'arrowup',
+  down: 'arrowdown',
+  left: 'arrowleft',
+  right: 'arrowright',
 };
+
+const isKeyToken = (m: string) => keyTokens.has(m) || m in keyAliases;
 
 const sysModifierMap = {
   ctrl: 'ctrlKey',
@@ -111,7 +97,8 @@ export function applyModifiers(
     }
 
     const hasKeyModifier =
-      e instanceof KeyboardEvent && modifiers.some((m) => keyMap[m] || m.length === 1);
+      e instanceof KeyboardEvent &&
+      modifiers.some((m) => isKeyToken(m) || m.length === 1);
 
     // Exact matching only applies when the trigger asks for specific keys or
     // modifiers. A bare trigger shouldn't be blocked by a held `shift` or `ctrl`.
@@ -134,7 +121,7 @@ export function applyModifiers(
       const isMatch = modifiers.some((m) => {
         if (m in sysModifierMap) return false;
 
-        const expected = keyMap[m]?.toLowerCase() || m.toLowerCase();
+        const expected = keyAliases[m] ?? m.toLowerCase();
         if (pressedKey === expected) return true;
 
         // Fallback to fix macOS 'alt' dead key
