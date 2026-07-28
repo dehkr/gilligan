@@ -369,8 +369,14 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
 
   /** window.requestIdleCallback (one-time execution). */
   idle: ({ action }) => {
-    const id = window.requestIdleCallback(() => action());
-    return () => window.cancelIdleCallback(id);
+    if (typeof window.requestIdleCallback === 'function') {
+      const id = window.requestIdleCallback(() => action());
+      return () => window.cancelIdleCallback(id);
+    }
+
+    // Safari fallback
+    const id = window.setTimeout(action, 1);
+    return () => window.clearTimeout(id);
   },
 };
 
