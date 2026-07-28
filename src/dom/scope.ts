@@ -4,8 +4,7 @@ import { STORE_PREFIX } from '../core/constants';
 import { fail, warn } from '../core/diagnostics';
 import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
-import { withMethodAliases } from '../net/request';
-import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
+import type { RouseFetch, ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
 import { attachWakeStrategies, dispatch, on } from './events';
 
@@ -132,14 +131,13 @@ function createScope(
   // Inject abort signal to avoid background request if scope is destroyed.
   // User can override by adding `signal: undefined`. `keepalive: true` lets a
   // request finish even if the tab closes.
-  const scopedFetch = withMethodAliases((resource, options = {}) =>
+  const scopedFetch: RouseFetch = (resource, options = {}) =>
     app.fetch(resource, {
       target: el,
       signal: abortCtrl.signal,
       swap: false,
       ...options,
-    }),
-  );
+    });
 
   // Context object passed into the scope setup function
   const context: ScopeCtx = {

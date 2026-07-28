@@ -1,6 +1,5 @@
 import type { RouseApp } from './core/app';
 import type {
-  HttpMethod,
   ITEM_KEY,
   ITEM_META_KEY,
   PatchAction,
@@ -459,18 +458,13 @@ export interface FetchConfig {
 }
 
 /**
- * The callable fetch surface. Invoke directly with an explicit `method` in
- * options, or via a lowercased per-method alias (`fetch.post(url)`).
+ * The callable fetch surface. The HTTP method comes from `options.method`,
+ * defaulting to `GET`.
  */
-export type RouseFetch = ((
+export type RouseFetch = (
   resource: string,
   options?: RouseRequest,
-) => Promise<RouseResponse>) & {
-  [M in Lowercase<HttpMethod>]: (
-    resource: string,
-    options?: RouseRequest,
-  ) => Promise<RouseResponse>;
-};
+) => Promise<RouseResponse>;
 
 /** The final unified options object passed into `ctx.fetch`. */
 export type RouseRequest = Omit<RequestInit, 'body' | 'headers'> & FetchConfig;

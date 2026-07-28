@@ -25,7 +25,6 @@ import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
 import { initDomRouter } from '../dom/swapper';
 import { handleFetch } from '../net/fetch-engine';
-import { withMethodAliases } from '../net/request';
 import { fallbackResponse } from '../net/response';
 import type {
   BoundOn,
@@ -170,8 +169,8 @@ export class RouseApp {
     this.root.setAttribute('data-rouse-app', '');
     appInstances.set(this.root, this);
 
-    // Bound + alias-decorated so `app.fetch.post(url)` resolves to this instance
-    this.fetch = withMethodAliases(this._fetch.bind(this));
+    // Bound so `app.fetch(url)` resolves to this instance
+    this.fetch = this._fetch.bind(this);
 
     // App-lifetime signal, created here instead of in `start` so `app.on` can bind
     // before `app.start()` is called. Is aborted in `destroy`.
