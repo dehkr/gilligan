@@ -7,7 +7,6 @@ import { resolveStoreUrl } from '../core/store';
 import { dispatch } from '../dom/events';
 import { extractFieldValues } from '../dom/forms';
 import type { RouseRequest, RouseResponse } from '../types';
-import { extractRouseHeaders } from './headers';
 import { PREVENTED, runRequestLifecycle } from './lifecycle';
 import { request, resolveRequestConfig } from './request';
 import { fallbackResponse, isFileType, isJsonType } from './response';
@@ -223,6 +222,21 @@ function routePayload(el: Element, result: RouseResponse, type: 'success' | 'err
   if (data != null) {
     __DEV__ && warn(`Unsupported payload: '${data?.constructor?.name || typeof data}'.`);
   }
+}
+
+/**
+ * Extracts the server-driven flow-control headers the fetch engine acts on.
+ *
+ * `Rouse-Trigger` is deliberately absent: it is consumed by `runRequestLifecycle`
+ * for all three request families (fetch, push, pull), not just fetch.
+ */
+function extractRouseHeaders(headers: Record<string, string> | null) {
+  return {
+    redirect: headers?.['rouse-redirect'] || null,
+    target: headers?.['rouse-target'] || null,
+    pushUrl: headers?.['rouse-push-url'] || null,
+    replaceUrl: headers?.['rouse-replace-url'] || null,
+  };
 }
 
 /**
