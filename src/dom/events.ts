@@ -345,6 +345,28 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     return () => observer.disconnect();
   },
 
+  /**
+   * First pointer or focus interaction with the element. Supports `.once`.
+   * `pointerover` covers mouse, touch, and pen; `focusin` covers keyboard.
+   */
+  interact: ({ el, modifiers, action }) => {
+    const events = ['pointerover', 'focusin'];
+    const isOnce = modifiers.includes('once');
+
+    const handler = (e: Event) => {
+      // Detach before dispatching, so a throwing action still tears down
+      if (isOnce) cleanup();
+      action(e);
+    };
+
+    const cleanup = () => {
+      events.forEach((evt) => el.removeEventListener(evt, handler));
+    };
+    events.forEach((evt) => el.addEventListener(evt, handler, { passive: true }));
+
+    return cleanup;
+  },
+
   /** window.requestIdleCallback (one-time execution). */
   idle: ({ action }) => {
     const id = window.requestIdleCallback(() => action());
