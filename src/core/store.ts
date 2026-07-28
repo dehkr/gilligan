@@ -9,9 +9,9 @@ import type {
   RouseRequest,
   RouseResponse,
   StoreSyncBeforeDetail,
-  StoreSyncConflictDetail,
   StoreSyncDetail,
   StoreSyncRollbackDetail,
+  StoreSyncSkippedDetail,
   VoidFn,
 } from '../types';
 import type { RouseApp } from './app';
@@ -217,8 +217,8 @@ export class StoreManager {
     detail:
       | StoreSyncBeforeDetail
       | StoreSyncDetail
-      | StoreSyncConflictDetail
-      | StoreSyncRollbackDetail,
+      | StoreSyncRollbackDetail
+      | StoreSyncSkippedDetail,
     storeName: string,
     options?: CustomEventInit,
   ) {
@@ -429,7 +429,7 @@ export class StoreManager {
       } else {
         // Is mutating. Dispatch sync conflict lifecycle event.
         this._dispatchSyncEvent(
-          'rz:store:sync:conflict',
+          'rz:store:sync:skipped',
           {
             storeName,
             operation,
@@ -438,7 +438,6 @@ export class StoreManager {
             response: result,
             nestedPath,
             action,
-            reason: 'mutating',
           },
           storeName,
         );

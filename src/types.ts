@@ -159,16 +159,14 @@ export interface StoreSyncBeforeDetail extends BaseStoreSync {
   payload?: any;
 }
 
-/** Detail for `rz:store:sync:conflict`. */
-export interface StoreSyncConflictDetail extends BaseStoreSync {
-  /** The local slice with unsaved edits that blocked the patch. */
+/** Detail for `rz:store:sync:skipped`. */
+export interface StoreSyncSkippedDetail extends BaseStoreSync {
+  /** The local slice with unsaved edits that was kept. */
   localData: any;
-  /** The incoming server slice that would have overwritten the local edits. */
+  /** The incoming server slice that was not applied. */
   serverData: any;
   /** The response carrying the server data. */
   response: RouseResponse;
-  /** Why the conflict occurred; always `'mutating'` (local edits in flight). */
-  reason: 'mutating';
 }
 
 /** Detail for `rz:store:sync:rollback`. */
@@ -263,8 +261,8 @@ export interface LifecycleEventMap {
   'rz:store:sync:before': StoreSyncBeforeDetail;
   /** Fires after a push or pull successfully syncs the store. Check `detail.operation` for direction. */
   'rz:store:sync': StoreSyncDetail;
-  /** Fires when the response carries server data but the store was edited while the request was in flight, so the server data is not applied. Both push and pull. */
-  'rz:store:sync:conflict': StoreSyncConflictDetail;
+  /** Fires when the response carries server data but the store was edited while the request was in flight, so the server data is not applied and the local edit is kept. Both push and pull. */
+  'rz:store:sync:skipped': StoreSyncSkippedDetail;
   /** Fires after `rz:push:error` when `rollbackOnError` reverts local state to the last-good snapshot. */
   'rz:store:sync:rollback': StoreSyncRollbackDetail;
   /** Fires before the swap executes; cancelable. Listeners can mutate `payload`. */

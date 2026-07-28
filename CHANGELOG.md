@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Breaking:** Rename `rz:store:sync:conflict` to `rz:store:sync:skipped` and drop its `reason` field.
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 
 ### Removed
