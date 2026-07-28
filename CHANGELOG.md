@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Changed
 
-## [0.10.0] - 2026-07-27
+- Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
+
+### Removed
+
+- **Breaking:** Remove `escape` key modifier token. Use `esc`.
+- **Breaking:** Remove `readOnly` and `nonReactive`.
+
+## [0.11.0] - 2026-07-27
 
 ### Added
 
