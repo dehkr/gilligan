@@ -45,13 +45,17 @@ const HEADERS_VARIANTS = {
 const abortRegistry = new Map<string | symbol, AbortEntry>();
 
 /**
- * A wrapper for the Fetch API providing request orchestration, including:
+ * Issues a network request and normalizes the outcome.
  *
- *   - Request, response, and error interceptors
- *   - Automatic payload serialization (JSON, FormData, URL parameters)
- *   - Concurrency management and cancellation via `abortKey`
- *   - Absolute global request timeouts
- *   - Automatic response normalization (JSON, Text, Blob)
+ * The single path every request Rouse makes goes through: the fetch engine and
+ * `StoreManager._request` both route through it, which is what makes interceptors
+ * apply uniformly (`skipInterceptors` is the per-call opt-out). Handles payload
+ * serialization, `abortKey` concurrency, timeouts, and response normalization.
+ *
+ * Does not reject on failure: network errors and non-OK statuses resolve as a
+ * `RouseResponse` with `error` populated. Malformed config is the exception, since
+ * `preparePayload` runs outside the catch and throws on an unusable URL or a
+ * `body`/`form` conflict.
  */
 export async function request<T = any>(
   url: string,

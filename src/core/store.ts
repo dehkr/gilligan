@@ -376,9 +376,9 @@ export class StoreManager {
     const action = manualConfig?.action || config?.action || 'replace';
     const nestedPath = manualConfig?.nestedPath;
 
-    // Record the sync and clear dirty for pushed-and-unchanged keys. Independent
-    // of the response echo, which a conflict or a prevented `:before` skips (mirroring
-    // the conflict path below).
+    // Request-scoped, not response-scoped: a 200 means the data reached the server,
+    // so this stands even when the echo below is never applied (mid-flight skip, or
+    // a listener cancelling `:before`).
     if (operation === 'push') {
       status.lastSync = Date.now();
       this._clearDirtyMatching(status, data, snapshot, nestedPath);
@@ -427,7 +427,7 @@ export class StoreManager {
           this._withPatchGuard(() => patchState(data, payload, action));
         }
       } else {
-        // Is mutating. Dispatch sync conflict lifecycle event.
+        // Local state moved mid-flight; keep the edit and skip the echo
         this._dispatchSyncEvent(
           'rz:store:sync:skipped',
           {
