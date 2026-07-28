@@ -1,16 +1,6 @@
 import { computed, signal, trigger } from 'alien-signals';
-import { warn } from '../core/diagnostics';
 import { methodIntercepts } from './arrays';
-import {
-  dirtyTrackers,
-  getRaw,
-  objectRootKeys,
-  proxiable,
-  RAW,
-  READONLY,
-  reactive,
-  readOnly,
-} from './reactive';
+import { dirtyTrackers, getRaw, objectRootKeys, proxiable, reactive } from './reactive';
 
 export const ITERATION_KEY = Symbol('rz_iteration');
 
@@ -19,7 +9,7 @@ const computedCache = new WeakMap<object, Map<string | symbol, () => any>>();
 
 export const handlers: ProxyHandler<object> = {
   get(target: object, key: string | symbol, receiver: object): any {
-    if (key === RAW || key === '__proto__') return target;
+    if (key === '__proto__') return target;
 
     if (Array.isArray(target) && Object.hasOwn(methodIntercepts, key)) {
       return Reflect.get(methodIntercepts, key, receiver);
@@ -48,10 +38,8 @@ export const handlers: ProxyHandler<object> = {
         dirtyTrackers.set(rawChild, parentTracker);
         objectRootKeys.set(rawChild, getRootKey(target, key));
       }
-
       return reactive(value);
     }
-
     return value;
   },
 
@@ -134,36 +122,6 @@ export const handlers: ProxyHandler<object> = {
     // the signal so we get notified when added later.
     getSignal(target, key)();
     return Reflect.has(target, key);
-  },
-};
-
-/**
- * Proxy handlers specifically for `readOnly()` objects.
- * Deeply wraps nested objects on access and blocks all mutations.
- */
-export const readOnlyHandlers: ProxyHandler<object> = {
-  get(target: object, key: string | symbol): any {
-    if (key === READONLY) return true;
-    if (key === RAW) return target;
-
-    const value = Reflect.get(target, key);
-
-    if (proxiable(value)) {
-      return readOnly(value);
-    }
-
-    return value;
-  },
-
-  set(_target: object, key: string | symbol): boolean {
-    __DEV__ && warn(`Cannot mutate read-only property: '${String(key)}'.`);
-    // Return true to prevent strict-mode TypeErrors from crashing the app
-    return true;
-  },
-
-  deleteProperty(_target: object, key: string | symbol): boolean {
-    __DEV__ && warn(`Cannot delete read-only property: '${String(key)}'.`);
-    return true;
   },
 };
 
