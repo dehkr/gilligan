@@ -6,7 +6,6 @@ import { parseTime } from '../core/timing';
 import type { ConfigDirective, DirectiveSlug, RouseRequest } from '../types';
 
 const BOOLEAN_KEYS = ['keepalive', 'rollback-on-error', 'skip-interceptors', 'swap'];
-const TIME_KEYS = ['timeout', 'retry-delay'];
 
 /**
  * Factory for `rz-request` and its variants.
@@ -47,20 +46,12 @@ function parseRequestConfig(
       config[kebabToCamel(key)] = val === 'true' || val === '';
     }
 
-    // timeout & retry-delay
-    else if (TIME_KEYS.includes(key)) {
+    // timeout
+    else if (key === 'timeout') {
       config[kebabToCamel(key)] = parseTime(val);
     }
 
-    // retry
-    else if (key === 'retry') {
-      const parsedRetry = parseInt(val, 10);
-      if (!Number.isNaN(parsedRetry)) {
-        config[key] = parsedRetry;
-      }
-    }
-
-    // RequestInit stuff and 'abort-key'
+    // RequestInit options and 'abort-key'
     else {
       config[kebabToCamel(key)] = val;
     }

@@ -452,10 +452,6 @@ export interface FetchConfig {
   swap?: boolean;
   /** Skip all registered interceptors for this request. */
   skipInterceptors?: boolean;
-  /** Number of times to retry on network failure or 5xx response. */
-  retry?: number;
-  /** Milliseconds between retries, or a function that receives the attempt number and returns a delay. */
-  retryDelay?: number | ((attempt: number) => number);
   /** When true, auto-revert local state on push failure. Ignored by fetch and pull. */
   rollbackOnError?: boolean;
   /** Abort the request after this many milliseconds. */

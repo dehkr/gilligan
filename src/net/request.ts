@@ -51,7 +51,6 @@ const abortRegistry = new Map<string | symbol, AbortEntry>();
  *   - Automatic payload serialization (JSON, FormData, URL parameters)
  *   - Concurrency management and cancellation via `abortKey`
  *   - Absolute global request timeouts
- *   - Configurable retries with custom delays and native 429/503 `Retry-After` support
  *   - Automatic response normalization (JSON, Text, Blob)
  */
 export async function request<T = any>(
@@ -91,7 +90,6 @@ export async function request<T = any>(
 
   // Extract Rouse-specific execution options
   const {
-    retry = 0,
     timeout = 0,
     abortKey,
     triggerEl,
@@ -120,7 +118,7 @@ export async function request<T = any>(
 
   const combinedSignal = AbortSignal.any(signals);
 
-  const execute = async (attempt: number): Promise<RouseResponse<T>> => {
+  const execute = async (): Promise<RouseResponse<T>> => {
     if (combinedSignal.aborted) {
       const status = mainSignal?.aborted ? 'CANCELED' : 'TIMEOUT';
       return fallbackResponse(currentOptions, 'Request canceled or timed out', status);
@@ -134,16 +132,6 @@ export async function request<T = any>(
         ...fetchOptions,
         ...(safeBody != null ? { body: safeBody } : {}),
       });
-
-      // If the server is overloaded (503) or if rate-limited (429),
-      // check the 'Retry-After' header to avoid further hammering the server.
-      if (!response.ok && (response.status === 429 || response.status === 503)) {
-        const delay = getRetryDelay(attempt, retry, currentOptions, response);
-        if (delay !== null) {
-          await cancellableDelay(delay, combinedSignal);
-          return execute(attempt + 1);
-        }
-      }
 
       const normalized = await normalizeResponse(response, currentOptions);
 
@@ -167,27 +155,18 @@ export async function request<T = any>(
     } catch (err: any) {
       let errorPayload = mapCatchError(err, !!mainSignal?.aborted);
 
-      if (errorPayload.status !== 'CANCELED' && errorPayload.status !== 'TIMEOUT') {
-        const delay = getRetryDelay(attempt, retry, currentOptions);
-        if (delay !== null) {
-          await cancellableDelay(delay, combinedSignal);
-          return execute(attempt + 1);
-        }
-      }
-
       // Error interceptors run on the final failure or explicit cancellation
       if (!currentOptions.skipInterceptors) {
         for (const fn of app._interceptors.error) {
           errorPayload = await fn(errorPayload, currentOptions);
         }
       }
-
       return wrapErrorResponse(errorPayload, currentOptions);
     }
   };
 
   try {
-    return await execute(0);
+    return await execute();
   } finally {
     // Cleanup abort key mapping only if this request owns it
     if (abortKey && ownerId) {
@@ -290,72 +269,4 @@ function wrapErrorResponse(error: RequestError, options: RouseRequest) {
     status: null,
     config: options,
   };
-}
-
-/**
- * Parses a Retry-After header (seconds or HTTP-Date) into milliseconds.
- * Caps the maximum delay at 60 seconds.
- */
-function parseRetryAfter(header: string | null): number {
-  let waitMs = 1000;
-
-  if (header) {
-    if (/^\d+$/.test(header)) {
-      waitMs = parseInt(header, 10) * 1000;
-    } else {
-      const date = Date.parse(header);
-      if (!Number.isNaN(date)) {
-        waitMs = date - Date.now();
-      }
-    }
-  }
-
-  return Math.max(0, Math.min(waitMs, 60000));
-}
-
-/**
- * Determines whether a failed request should be retried and how long to wait.
- * Returns the delay in ms, or null if the request should not be retried.
- */
-function getRetryDelay(
-  attempt: number,
-  maxRetries: number,
-  options: RouseRequest,
-  response?: Response,
-): number | null {
-  if (attempt >= maxRetries) return null;
-
-  // Server-driven delay from a 429/503 Retry-After header takes precedence.
-  // The caller only passes `response` on the overload path, so presence is enough.
-  if (response) {
-    const serverDelay = response.headers.get('Retry-After');
-    if (serverDelay) {
-      return parseRetryAfter(serverDelay);
-    }
-  }
-
-  // User-defined delay for network/catch errors
-  const delayConfig = options.retryDelay ?? 1000;
-  return typeof delayConfig === 'function' ? delayConfig(attempt) : delayConfig;
-}
-
-/**
- * Resolves a delay promise early if the provided signal is aborted.
- */
-function cancellableDelay(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-
-  return new Promise((resolve) => {
-    const onAbort = () => {
-      clearTimeout(timer);
-      resolve();
-    };
-
-    const timer = setTimeout(() => {
-      signal.removeEventListener('abort', onAbort);
-      resolve();
-    }, ms);
-
-    signal.addEventListener('abort', onAbort, { once: true });
-  });
 }

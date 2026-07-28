@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** Remove `escape` key modifier token. Use `esc`.
 - **Breaking:** Remove `readOnly` and `nonReactive`.
+- **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible online: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
 
 ## [0.11.0] - 2026-07-27
 
