@@ -270,7 +270,9 @@ export class StoreManager {
 
     await runRequestLifecycle({
       el: firingEl,
+      root: this.app.root,
       prefix: operation === 'push' ? 'rz:push' : 'rz:pull',
+      config: requestOptions,
       configDetail: {
         storeName: id,
         config: requestOptions,

@@ -20,7 +20,7 @@ function defineRequestConfigDirective(
 }
 
 /**
- * Parses a `rz-request*` directive value into a partial RouseRequest config.
+ * Parses a `rz-request` directive value into a partial `RouseRequest` config.
  * Shared by `rz-request` and its action-specific variants.
  */
 function parseRequestConfig(
@@ -36,8 +36,13 @@ function parseRequestConfig(
     if (!key) continue;
     const val = rawVal ?? '';
 
+    // Raw CSS selector; `null` suppresses the `rouse-request` class application
+    if (key === 'indicator') {
+      config[key] = val === 'null' ? null : val;
+    }
+
     // Dynamic payload delimiters
-    if (val.match(/^[#@{]/)) {
+    else if (val.match(/^[#@{]/)) {
       config[key] = resolveInjection(val, app.stores, false);
     }
 

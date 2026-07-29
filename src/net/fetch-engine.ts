@@ -118,7 +118,9 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
 
   const outcome = await runRequestLifecycle({
     el,
+    root: app.root,
     prefix: 'rz:fetch',
+    config: finalOptions,
     configDetail: { config: finalOptions, url, method },
     lifecycleDetail: { config: finalOptions },
     terminalDetail: (result) => result,

@@ -432,6 +432,8 @@ export interface FetchConfig {
   url?: string;
   /** DOM element or CSS selector to receive swapped response HTML. */
   target?: Element | string;
+  /** CSS selector for elements to receive the rouse request class for the duration of the request. */
+  indicator?: string | null;
   /** The element that triggered the request. Used to resolve `rz-request` config layers. */
   triggerEl?: Element;
   /** Request headers. A `null` value removes the header. Empty strings are sent as-is. */

@@ -7,13 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the `indicator` option to the `rz-request` family. Accepts a CSS selector for elements to receive the `rouse-request` class for the duration of the request. Defaults to the triggering element; `indicator: null` suppresses the class.
+
 ### Changed
 
+- **Breaking:** Rename the in-flight class from `rz-loading` to `rouse-request`.
 - **Breaking:** Rename `rz:store:sync:conflict` to `rz:store:sync:skipped` and drop its `reason` field.
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 
 ### Removed
 
+- **Breaking:** Remove the automatic `aria-busy="true"` on the triggering element. Apply it from an `rz:fetch:start` / `:end` listener pair instead.
 - **Breaking:** Remove `escape` key modifier token. Use `esc`.
 - **Breaking:** Remove `readOnly` and `nonReactive`.
 - **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible online: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
