@@ -12,7 +12,7 @@ const warnedProps = new WeakMap<Element, Set<string>>();
  */
 export function updateText(el: Element, value: BindableValue) {
   // Check equality to avoid cursor jumping in contenteditable
-  const strVal = displayString(value);
+  const strVal = String(value ?? '');
   if (el.textContent !== strVal) {
     el.textContent = strVal;
   }
@@ -22,7 +22,7 @@ export function updateText(el: Element, value: BindableValue) {
  * Handles innerHTML updates.
  */
 export function updateHtml(el: Element, value: BindableValue) {
-  const htmlVal = displayString(value);
+  const htmlVal = String(value ?? '');
   if (el.innerHTML !== htmlVal) {
     el.innerHTML = htmlVal;
   }
@@ -233,37 +233,4 @@ function warnPropOnce(el: Element, name: string): void {
   if (seen.has(name)) return;
   seen.add(name);
   warn(`rz-prop: cannot set property '${name}'. It is read-only or has no setter.`, el);
-}
-
-/**
- * Converts bindable values into strings for improved output of JSON/data.
- */
-function displayString(value: BindableValue): string {
-  if (value == null) return '';
-
-  if (typeof value === 'object') {
-    // Handle dates
-    if (value instanceof Date) {
-      return Number.isNaN(value.getTime()) ? 'Invalid Date' : value.toLocaleString();
-    }
-
-    // Format flat arrays of primitives for readability
-    if (Array.isArray(value)) {
-      const isFlat = value.every((item) => item == null || typeof item !== 'object');
-
-      if (isFlat) {
-        return value.filter((v) => v != null).join(', ');
-      }
-    }
-
-    // Stringify objects and complex arrays
-    try {
-      return JSON.stringify(value, null, 2);
-    } catch {
-      return '[Circular reference]';
-    }
-  }
-
-  // Standard primitives
-  return String(value);
 }
