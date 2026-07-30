@@ -1,6 +1,6 @@
 import { getApp, type RouseApp } from '../core/app';
 import { directiveSelector, hasDirective, queryTargets } from '../core/attributes';
-import { rzFetch, rzPull, rzPush, rzStore } from '../directives';
+import { NETWORK_DIRECTIVES, rzStore } from '../directives';
 import {
   mountGlobalBinding,
   resolveRemovedOwner,
@@ -24,7 +24,7 @@ import {
 export function initObserver(app: RouseApp) {
   const scopeSelector = directiveSelector('scope');
   const storeSelector = `script${directiveSelector('store')}`;
-  const networkDirectives = [rzFetch, rzPush, rzPull].map(
+  const networkDirectives = NETWORK_DIRECTIVES.map(
     (directive) => [directive, directiveSelector(directive.slug)] as const,
   );
 

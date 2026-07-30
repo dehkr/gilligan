@@ -266,13 +266,17 @@ export const rzFetch = defineNetworkOpDirective(
   'click: /api/users',
   bindFetchPairs,
 );
+
 export const rzPush = defineNetworkOpDirective(
   'push',
   'click: @users',
   (el, app, pairs) => bindStorePairs('push', el, app, pairs),
 );
+
 export const rzPull = defineNetworkOpDirective(
   'pull',
   'page-visible: @users',
   (el, app, pairs) => bindStorePairs('pull', el, app, pairs),
 );
+
+export const NETWORK_DIRECTIVES = [rzFetch, rzPush, rzPull];

@@ -5,7 +5,7 @@ export {
   rzPullHeaders,
   rzPushHeaders,
 } from './headers-config';
-export { rzFetch, rzPull, rzPush } from './network-ops';
+export { NETWORK_DIRECTIVES, rzFetch, rzPull, rzPush } from './network-ops';
 export {
   rzFetchRequest,
   rzPullRequest,

@@ -1,13 +1,11 @@
 import {
+  NETWORK_DIRECTIVES,
   rzAttr,
   rzClass,
-  rzFetch,
   rzHtml,
   rzModel,
   rzOn,
   rzProp,
-  rzPull,
-  rzPush,
   rzRender,
   rzStore,
   rzStyle,
@@ -318,13 +316,14 @@ export class RouseApp {
       el = targetRef;
     }
 
+    const config = { ...options, url: resource };
+
     if (!el) {
       __DEV__ && err(`Fetch failed. Target element not found.`, targetRef);
-      return fallbackResponse(options, 'Target element not found', 'INTERNAL_ERROR');
+      return fallbackResponse(config, 'Target element not found', 'INTERNAL_ERROR');
     }
 
-    options.url = resource;
-    return handleFetch(el, this, options);
+    return handleFetch(el, this, config);
   }
 
   /**
@@ -379,7 +378,7 @@ export class RouseApp {
       }
     });
 
-    for (const d of [rzFetch, rzPush, rzPull]) {
+    for (const d of NETWORK_DIRECTIVES) {
       queryTargets(this.root, directiveSelector(d.slug)).forEach((el) => {
         if (getApp(el, this)) {
           d.initialize(el, this);
@@ -418,7 +417,7 @@ export class RouseApp {
     const scopes = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
     scopes.forEach(destroyInstance);
 
-    for (const d of [rzFetch, rzPush, rzPull]) {
+    for (const d of NETWORK_DIRECTIVES) {
       queryTargets(this.root, directiveSelector(d.slug)).forEach(d.teardown);
     }
     for (const el of this.stores.elements()) {
