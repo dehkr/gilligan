@@ -11,9 +11,7 @@ import { PREVENTED, runRequestLifecycle } from './lifecycle';
 import { request, resolveRequestConfig } from './request';
 import { fallbackResponse, isFileType, isJsonType } from './response';
 
-type RequestState = { abortKey?: string };
-
-const activeRequests = new WeakMap<Element, RequestState>();
+const abortKeys = new WeakMap<Element, string>();
 
 /**
  * Handles the preparation, pacing, and execution of a network request.
@@ -23,12 +21,6 @@ export async function handleFetch(
   app: RouseApp,
   programmaticOpts: RouseRequest = {},
 ): Promise<RouseResponse> {
-  let state = activeRequests.get(el);
-  if (!state) {
-    state = {};
-    activeRequests.set(el, state);
-  }
-
   try {
     return await executeFetch(el, app, programmaticOpts);
   } catch (error: any) {
@@ -50,12 +42,11 @@ export async function handleFetch(
  * @param options - The sanitized request config passed to the network orchestrator.
  */
 async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
-  const state = activeRequests.get(el);
   const isFormEl = is(el, 'Form');
 
   // If the element is removed while the network request is actively in the air
   if (!el.isConnected) {
-    activeRequests.delete(el);
+    abortKeys.delete(el);
     return fallbackResponse(options, 'Element disconnected from DOM');
   }
 
@@ -71,13 +62,11 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
 
   if (!url) {
     __DEV__ && warn('Invalid or missing URL for the fetch request.', el);
-    const fallback = fallbackResponse(
+    return fallbackResponse(
       options,
       'Invalid or missing URL for the fetch request.',
       'INTERNAL_ERROR',
     );
-    dispatch(el, 'rz:fetch:error', fallback);
-    return fallback;
   }
 
   const finalRequestInit = resolveRequestConfig(el, 'fetch', app);
@@ -100,10 +89,10 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
 
   // Auto-generate an abort key if one isn't provided to guarantee
   // an element can never have conflicting requests.
-  let autoAbortKey = state?.abortKey;
+  let autoAbortKey = abortKeys.get(el);
   if (!autoAbortKey) {
     autoAbortKey = createKey('rz_abort_');
-    activeRequests.set(el, { ...state, abortKey: autoAbortKey });
+    abortKeys.set(el, autoAbortKey);
   }
 
   // Final unified config object
@@ -113,7 +102,7 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
     method,
     abortKey: options.abortKey || finalRequestInit.abortKey || autoAbortKey,
     triggerEl: el,
-    form: hasExplicitBody ? undefined : isFormEl ? (el as HTMLFormElement) : undefined,
+    form: !hasExplicitBody && isFormEl ? el : undefined,
   };
 
   const outcome = await runRequestLifecycle({
@@ -130,7 +119,7 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
         const rouseHeaders = extractRouseHeaders(result.headers);
 
         if (rouseHeaders.redirect) {
-          activeRequests.delete(el);
+          abortKeys.delete(el);
           window.location.assign(rouseHeaders.redirect);
           return result;
         }
@@ -140,7 +129,7 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
         // short-circuit in the error block below.
         if (result.response?.redirected) {
           if (isSameOrigin(result.response.url)) {
-            activeRequests.delete(el);
+            abortKeys.delete(el);
             window.location.assign(result.response.url);
             return result;
           }
