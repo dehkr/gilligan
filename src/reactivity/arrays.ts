@@ -62,7 +62,7 @@ const MUTATORS = [
 ] as const;
 
 // Batch updates, run on raw, and manually trigger 'length' and iteration signals
-MUTATORS.forEach((key) => {
+for (const key of MUTATORS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
     startBatch();
     try {
@@ -83,12 +83,12 @@ MUTATORS.forEach((key) => {
       endBatch();
     }
   };
-});
+}
 
 const SEARCHERS = ['includes', 'indexOf', 'lastIndexOf'] as const;
 
 // Track iteration, run on raw, and retry with raw args if search fails (handles proxies)
-SEARCHERS.forEach((key) => {
+for (const key of SEARCHERS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
     const raw = getRaw(this) as any;
     getSignal(raw, ITERATION_KEY)();
@@ -101,12 +101,12 @@ SEARCHERS.forEach((key) => {
     }
     return result;
   };
-});
+}
 
 const ITERATORS = ['entries', 'keys', 'values', Symbol.iterator] as const;
 
 // Track iteration, get raw iterator, and yield reactive proxies for safe loops
-ITERATORS.forEach((key) => {
+for (const key of ITERATORS) {
   methodIntercepts[key] = function* (this: any[]) {
     const raw = getRaw(this) as any;
     getSignal(raw, ITERATION_KEY)();
@@ -116,7 +116,7 @@ ITERATORS.forEach((key) => {
       yield reactive(val);
     }
   };
-});
+}
 
 const CONSUMERS = [
   'at',
@@ -132,12 +132,12 @@ const CONSUMERS = [
 ] as const;
 
 // Run on raw, proxy callback arguments, and wrap the return value if it's an object
-CONSUMERS.forEach((key) => {
+for (const key of CONSUMERS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
     const result = runOnRaw(this, key, args);
     return reactive(result);
   };
-});
+}
 
 const PRODUCERS = [
   'concat',
@@ -153,19 +153,19 @@ const PRODUCERS = [
 ] as const;
 
 // Run on raw with proxied callback args, then wrap the resulting array items in proxies
-PRODUCERS.forEach((key) => {
+for (const key of PRODUCERS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
     return runOnRaw(this, key, args, true);
   };
-});
+}
 
 const STRINGIFIERS = ['join', 'toString', 'toLocaleString'] as const;
 
 // Track iteration and run on raw to ensure dependency registration
-STRINGIFIERS.forEach((key) => {
+for (const key of STRINGIFIERS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
     const raw = getRaw(this) as any;
     getSignal(raw, ITERATION_KEY)();
     return raw[key](...args);
   };
-});
+}
