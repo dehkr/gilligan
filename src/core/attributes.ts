@@ -1,29 +1,32 @@
 import type { DirectiveSlug } from '../types';
 
 /**
- * Generates a CSS selector that matches both prefix styles
- * (e.g., `'[rz-text], [data-rz-text]'`).
+ * Generates a CSS selector matching both prefix styles (`[rz-text], [data-rz-text]`).
+ * Pass `tag` to qualify both entries; prefixing the returned string yourself
+ * qualifies only the first.
  */
-export function directiveSelector(slug: DirectiveSlug): string {
-  return `[rz-${slug}], [data-rz-${slug}]`;
+export function directiveSelector(slug: DirectiveSlug, tag = ''): string {
+  return `${tag}[rz-${slug}], ${tag}[data-rz-${slug}]`;
 }
 
 /**
- * Gets the directive value associated with a specific element.
+ * Gets the directive value associated with a specific element. Returns `null` if
+ * the directive isn't present.
  */
 export function getDirectiveValue(el: Element, slug: DirectiveSlug): string | null {
   return el.getAttribute(`rz-${slug}`) ?? el.getAttribute(`data-rz-${slug}`);
 }
 
 /**
- * Checks if the element has either prefix.
+ * Checks if the element has a specific directive.
  */
 export function hasDirective(el: Element, slug: DirectiveSlug): boolean {
   return el.hasAttribute(`rz-${slug}`) || el.hasAttribute(`data-rz-${slug}`);
 }
 
 /**
- * Safely query within the element boundary (including the element itself).
+ * Queries within the element boundary, including the element itself. Returns an
+ * empty array for an invalid selector rather than throwing.
  */
 export function queryTargets<T extends Element = Element>(
   el: Element,
@@ -31,13 +34,11 @@ export function queryTargets<T extends Element = Element>(
 ): T[] {
   try {
     const targets = Array.from(el.querySelectorAll<T>(selector));
-    // Check if root element itself matches the selector
     if (el.matches(selector)) {
       targets.unshift(el as T);
     }
     return targets;
-  } catch (_e) {
-    // Fail gracefully on invalid CSS selectors
+  } catch {
     return [];
   }
 }
