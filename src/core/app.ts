@@ -395,6 +395,7 @@ export class RouseApp {
     }
 
     requestAnimationFrame(() => {
+      if (this._destroyed) return;
       this.isReady = true;
       dispatch(this.root, 'rz:app:ready', { app: this });
     });
@@ -430,6 +431,7 @@ export class RouseApp {
     // Release after the destroy event so app.on('rz:app:destroy') fires and
     // getApp(e.target) still resolves.
     this.root.removeAttribute('data-rouse-app');
+    appInstances.delete(this.root);
     this._abortController.abort();
   }
 }
