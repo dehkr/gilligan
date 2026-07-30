@@ -4,7 +4,6 @@ import { request } from '../net/request';
 import { reactive, seedPropagation, trackDirty } from '../reactivity/reactive';
 import type {
   DirectiveSlug,
-  FetchConfig,
   LifecycleEvent,
   RouseRequest,
   RouseResponse,
@@ -56,6 +55,18 @@ export interface StoreRequestOptions {
   triggerEl?: Element;
 }
 
+interface StoreEntry {
+  name: string;
+  data: any;
+  status: StoreStatus;
+  initial: any;
+  config?: SyncConfig;
+  lastGood?: any;
+  activeReq?: symbol;
+  el?: Element;
+  listeners?: Set<VoidFn>;
+}
+
 /**
  * Returns the nested slice at `path`, or the whole object when no path is given.
  */
@@ -81,7 +92,9 @@ export function resolveTarget(
         );
       return null;
     }
+
     const { source: storeName, nestedPath } = parseDataSourcePath(subject);
+
     if (!storeName) {
       __DEV__ && warn(`rz-${slug}: invalid store reference '${subject}'.`);
       return null;
@@ -99,6 +112,7 @@ export function resolveTarget(
       );
     return null;
   }
+
   return { storeName: selfName, nestedPath: '' };
 }
 
@@ -113,7 +127,7 @@ export function resolveStoreUrl(ref: string, stores: StoreManager): string | nul
 
   const value = getNestedVal(storeData, nestedPath);
 
-  if (!value || typeof value !== 'string' || !value.trim()) {
+  if (typeof value !== 'string' || !value.trim()) {
     __DEV__ && warn(`Invalid URL. '${ref}' does not resolve to a string.`);
     return null;
   }
@@ -128,15 +142,8 @@ export function resolveStoreUrl(ref: string, stores: StoreManager): string | nul
 export class StoreManager {
   private app: RouseApp;
 
-  private _data = new Map<string, any>();
-  private _status = new Map<string, StoreStatus>();
-  private _configs = new Map<string, SyncConfig>();
-  private _initial = new Map<string, any>();
-  private _lastGood = new Map<string, any>();
-  private _activeReqs = new Map<string, symbol>();
-  private _elements = new Map<string, Element>();
-  private _mutateListeners = new Map<string, Set<VoidFn>>();
-  private _pendingMutates = new Set<string>();
+  private _stores = new Map<string, StoreEntry>();
+  private _pendingMutates = new Set<StoreEntry>();
   private _isPatching = false;
 
   constructor(app: RouseApp) {
@@ -152,21 +159,18 @@ export class StoreManager {
     });
   }
 
-  _setConfig(id: string, partial?: Partial<SyncConfig>) {
-    const existing = this._configs.get(id) || { url: '' };
-    this._configs.set(id, { ...existing, ...partial });
+  private _setConfig(entry: StoreEntry, partial?: Partial<SyncConfig>) {
+    entry.config = { url: '', ...entry.config, ...partial };
   }
 
   private _register(
-    id: string,
+    storeName: string,
     state: object,
     programmaticConfig?: Partial<SyncConfig>,
     el?: Element,
-  ) {
+  ): StoreEntry {
     const status = this._createStatus();
-    this._status.set(id, status);
 
-    // Expose __status invisibly
     Object.defineProperty(state, '__status', {
       value: status,
       enumerable: false,
@@ -175,54 +179,54 @@ export class StoreManager {
     });
 
     const proxyState = reactive(state);
-    this._data.set(id, proxyState);
-    this._initial.set(id, clone(state));
+    const entry: StoreEntry = {
+      name: storeName,
+      data: proxyState,
+      status,
+      initial: clone(state),
+    };
+    this._stores.set(storeName, entry);
 
     trackDirty(proxyState, (rootKey: string) => {
       if (this._isPatching) return;
       this._withPatchGuard(() => {
         status.dirty[rootKey] = true;
       });
-      this._scheduleMutate(id);
+      this._scheduleMutate(entry);
     });
 
     if (programmaticConfig) {
-      this._setConfig(id, programmaticConfig);
+      this._setConfig(entry, programmaticConfig);
     }
 
-    if (el) {
-      this._elements.set(id, el);
-    }
+    if (el) entry.el = el;
+
+    return entry;
   }
 
-  private _getStore(id: string) {
-    const data = this._data.get(id);
-    const status = this._status.get(id);
-    const config = this._configs.get(id);
-
-    if (!data || !status) {
-      __DEV__ && warn(`Store '${id}' not found.`);
-      return undefined;
+  private _getStore(storeName: string) {
+    const entry = this._stores.get(storeName);
+    if (!entry) {
+      __DEV__ && warn(`Store '${storeName}' not found.`);
     }
-
-    return { data, status, config };
+    return entry;
   }
 
-  private _updateLastGood(storeName: string, data: any) {
-    this._lastGood.set(storeName, clone(data));
+  private _updateLastGood(entry: StoreEntry, data: any) {
+    entry.lastGood = clone(data);
   }
 
   private _dispatchSyncEvent(
+    entry: StoreEntry,
     eventName: LifecycleEvent,
     detail:
       | StoreSyncBeforeDetail
       | StoreSyncDetail
       | StoreSyncRollbackDetail
       | StoreSyncSkippedDetail,
-    storeName: string,
     options?: CustomEventInit,
   ) {
-    const target = this.elementFor(storeName) || this.app.root;
+    const target = entry.el || this.app.root;
     return dispatch(target, eventName, detail, options);
   }
 
@@ -230,14 +234,14 @@ export class StoreManager {
    * Internal unified request handler for push and pull operations.
    */
   private async _request(
-    id: string,
+    storeName: string,
     operation: 'push' | 'pull',
     manualConfig?: StoreRequestOptions,
   ) {
-    const store = this._getStore(id);
-    if (!store) return;
+    const entry = this._getStore(storeName);
+    if (!entry) return;
 
-    const { data, status, config } = store;
+    const { data, status, config } = entry;
     const overrides = manualConfig?.overrides ?? {};
 
     const rawUrl = manualConfig?.url || overrides.url || config?.url;
@@ -249,14 +253,14 @@ export class StoreManager {
       manualConfig?.method || overrides.method || storeMethod || defaultMethod;
 
     if (!url) {
-      __DEV__ && warn(`Cannot ${operation} store '${id}': URL not configured.`);
+      __DEV__ && warn(`Cannot ${operation} store '${storeName}': URL not configured.`);
       return;
     }
 
     const requestOptions: RouseRequest = {
       ...overrides,
       method,
-      abortKey: overrides.abortKey ?? `${operation}_${id}`,
+      abortKey: overrides.abortKey ?? `${operation}_${storeName}`,
     };
 
     // Body for push: full data, or a nested slice if nestedPath is provided
@@ -265,8 +269,9 @@ export class StoreManager {
     }
 
     // Request-axis events fire from the trigger element; destination-axis
-    // (rz:store:sync:*) events keep firing from elementFor(id) ?? root.
-    const firingEl = manualConfig?.triggerEl ?? this.elementFor(id) ?? this.app.root;
+    // (rz:store:sync:*) events keep firing from elementFor(storeName) ?? root.
+    const firingEl =
+      manualConfig?.triggerEl ?? this.elementFor(storeName) ?? this.app.root;
 
     await runRequestLifecycle({
       el: firingEl,
@@ -274,22 +279,22 @@ export class StoreManager {
       prefix: operation === 'push' ? 'rz:push' : 'rz:pull',
       config: requestOptions,
       configDetail: {
-        storeName: id,
+        storeName,
         config: requestOptions,
         url,
         method,
       },
       lifecycleDetail: {
-        storeName: id,
+        storeName,
         config: requestOptions,
       },
       terminalDetail: (result) => ({
-        storeName: id,
+        storeName,
         result,
       }),
       run: async (handle) => {
-        const reqToken = Symbol();
-        this._activeReqs.set(id, reqToken);
+        const reqToken = Symbol('rz.request');
+        entry.activeReq = reqToken;
 
         const snapshot = clone(data);
         status.loading = operation;
@@ -308,15 +313,13 @@ export class StoreManager {
 
             const rollbackOnError =
               manualConfig?.rollbackOnError ??
-              (requestOptions as FetchConfig).rollbackOnError ??
+              requestOptions.rollbackOnError ??
               config?.rollbackOnError ??
               false;
 
             if (operation === 'push' && rollbackOnError) {
               this._maybeRollback(
-                id,
-                data,
-                status,
+                entry,
                 snapshot,
                 manualConfig?.nestedPath,
                 result.error,
@@ -324,22 +327,12 @@ export class StoreManager {
             }
             return result;
           }
-
-          this._applyServerResponse(
-            id,
-            operation,
-            result,
-            data,
-            status,
-            config,
-            snapshot,
-            manualConfig,
-          );
+          this._applyServerResponse(entry, operation, result, snapshot, manualConfig);
           return result;
         } finally {
-          if (this._activeReqs.get(id) === reqToken) {
+          if (entry.activeReq === reqToken) {
             status.loading = false;
-            this._activeReqs.delete(id);
+            entry.activeReq = undefined;
           }
         }
       },
@@ -366,15 +359,14 @@ export class StoreManager {
   }
 
   private _applyServerResponse(
-    storeName: string,
+    entry: StoreEntry,
     operation: 'push' | 'pull',
     result: RouseResponse,
-    data: any,
-    status: StoreStatus,
-    config: SyncConfig | undefined,
     snapshot: any,
     manualConfig?: StoreRequestOptions,
   ) {
+    const { name: storeName, data, status, config } = entry;
+
     const action = manualConfig?.action || config?.action || 'replace';
     const nestedPath = manualConfig?.nestedPath;
 
@@ -387,9 +379,16 @@ export class StoreManager {
     }
 
     const beforeEvent = this._dispatchSyncEvent(
+      entry,
       'rz:store:sync:before',
-      { storeName, operation, data, payload: result.data, nestedPath, action },
-      storeName,
+      {
+        storeName,
+        operation,
+        data,
+        payload: result.data,
+        nestedPath,
+        action,
+      },
       { cancelable: true },
     );
     if (beforeEvent.defaultPrevented) return;
@@ -430,19 +429,15 @@ export class StoreManager {
         }
       } else {
         // Local state moved mid-flight; keep the edit and skip the echo
-        this._dispatchSyncEvent(
-          'rz:store:sync:skipped',
-          {
-            storeName,
-            operation,
-            localData: localSlice,
-            serverData: sliceAt(payload, nestedPath),
-            response: result,
-            nestedPath,
-            action,
-          },
+        this._dispatchSyncEvent(entry, 'rz:store:sync:skipped', {
           storeName,
-        );
+          operation,
+          localData: localSlice,
+          serverData: sliceAt(payload, nestedPath),
+          response: result,
+          nestedPath,
+          action,
+        });
         return;
       }
     }
@@ -451,23 +446,27 @@ export class StoreManager {
       status.lastSync = Date.now();
     }
 
-    this._updateLastGood(storeName, data);
+    this._updateLastGood(entry, data);
 
-    this._dispatchSyncEvent(
-      'rz:store:sync',
-      { storeName, operation, data, response: result, payload, nestedPath, action },
+    this._dispatchSyncEvent(entry, 'rz:store:sync', {
       storeName,
-    );
+      operation,
+      data,
+      response: result,
+      payload,
+      nestedPath,
+      action,
+    });
   }
 
   /**
    * Marks a store server-synced. Used by the router's deposit path, which is
    * server contact but goes through `update()` (a local-mutation primitive).
    */
-  _markSynced(name: string) {
-    const status = this._status.get(name);
-    if (status) {
-      status.lastSync = Date.now();
+  _markSynced(storeName: string) {
+    const entry = this._stores.get(storeName);
+    if (entry) {
+      entry.status.lastSync = Date.now();
     }
   }
 
@@ -480,23 +479,19 @@ export class StoreManager {
     }
   }
 
-  private _clearAllDirty(storeName: string) {
-    const status = this._status.get(storeName);
-    if (!status) return;
-    for (const key of Object.keys(status.dirty)) {
-      delete status.dirty[key];
+  private _clearAllDirty(entry: StoreEntry) {
+    for (const key of Object.keys(entry.status.dirty)) {
+      delete entry.status.dirty[key];
     }
   }
 
   private _maybeRollback(
-    storeName: string,
-    data: any,
-    status: StoreStatus,
+    entry: StoreEntry,
     snapshot: any,
     nestedPath: string | undefined,
     error: unknown,
   ): boolean {
-    const lastGood = this._lastGood.get(storeName);
+    const { name: storeName, data, status, lastGood } = entry;
     if (lastGood === undefined) return false;
 
     // Skip when the user has kept editing during flight
@@ -508,7 +503,7 @@ export class StoreManager {
     const lastGoodSlice = sliceAt(lastGood, nestedPath);
     if (deepEqual(localSlice, lastGoodSlice)) return false;
 
-    const rolledBackTo = clone(sliceAt(lastGood, nestedPath));
+    const rolledBackTo = clone(lastGoodSlice);
 
     this._withPatchGuard(() => {
       if (nestedPath) {
@@ -520,33 +515,31 @@ export class StoreManager {
 
     this._clearDirtyMatching(status, data, lastGood, nestedPath);
 
-    this._dispatchSyncEvent(
-      'rz:store:sync:rollback',
-      {
-        storeName,
-        operation: 'push',
-        data,
-        rolledBackTo,
-        nestedPath,
-        error,
-        reason: 'push-error',
-      },
+    this._dispatchSyncEvent(entry, 'rz:store:sync:rollback', {
       storeName,
-    );
+      operation: 'push',
+      data,
+      rolledBackTo,
+      nestedPath,
+      error,
+      reason: 'push-error',
+    });
 
     return true;
   }
 
-  private _scheduleMutate(name: string) {
-    if (!this._mutateListeners.has(name)) return;
+  private _scheduleMutate(entry: StoreEntry) {
+    if (!entry.listeners) return;
+
     const wasEmpty = this._pendingMutates.size === 0;
-    this._pendingMutates.add(name);
+    this._pendingMutates.add(entry);
+
     if (wasEmpty) {
       queueMicrotask(() => {
         const toNotify = [...this._pendingMutates];
         this._pendingMutates.clear();
-        for (const n of toNotify) {
-          const listeners = this._mutateListeners.get(n);
+        for (const pending of toNotify) {
+          const listeners = pending.listeners;
           if (listeners) {
             for (const cb of listeners) cb();
           }
@@ -558,20 +551,24 @@ export class StoreManager {
   /**
    * Listens for user-driven mutations to the store. Returns a cleanup function.
    */
-  onEdit(name: string, callback: () => void): VoidFn {
-    let listeners = this._mutateListeners.get(name);
+  onEdit(storeName: string, callback: () => void): VoidFn {
+    const entry = this._stores.get(storeName);
+    if (!entry) return () => {};
+
+    let listeners = entry.listeners;
     if (!listeners) {
       listeners = new Set();
-      this._mutateListeners.set(name, listeners);
+      entry.listeners = listeners;
       // Seed lazy tracker propagation across the initial tree
-      const data = this._data.get(name);
-      if (data) seedPropagation(data);
+      if (entry.data) {
+        seedPropagation(entry.data);
+      }
     }
     listeners.add(callback);
     return () => {
       listeners.delete(callback);
-      if (listeners.size === 0 && this._mutateListeners.get(name) === listeners) {
-        this._mutateListeners.delete(name);
+      if (listeners.size === 0 && entry.listeners === listeners) {
+        entry.listeners = undefined;
       }
     };
   }
@@ -579,35 +576,39 @@ export class StoreManager {
   /**
    * Retrieves the source `<script rz-store>` element for a registered store.
    */
-  elementFor(name: string): Element | undefined {
-    return this._elements.get(name);
+  elementFor(storeName: string): Element | undefined {
+    return this._stores.get(storeName)?.el;
   }
 
   /**
    * Returns an iterable object containing every `<script rz-store>` element
    * registered in the store manager.
    */
-  elements(): Iterable<Element> {
-    return this._elements.values();
+  *elements(): Iterable<Element> {
+    for (const entry of this._stores.values()) {
+      if (entry.el) {
+        yield entry.el;
+      }
+    }
   }
 
   /**
    * Registers a new store and returns its reactive proxy.
    */
   create<T extends object = any>(
-    name: string,
+    storeName: string,
     state: T,
     config?: Partial<SyncConfig>,
     el?: Element,
   ): RouseStore<T> {
-    if (this._data.has(name)) {
-      fail(`A store named '${name}' already exists.`);
+    if (this._stores.has(storeName)) {
+      fail(`A store named '${storeName}' already exists.`);
     }
 
-    this._register(name, state, config, el);
-    this._updateLastGood(name, state);
+    const entry = this._register(storeName, state, config, el);
+    this._updateLastGood(entry, state);
 
-    return this._data.get(name);
+    return entry.data;
   }
 
   /**
@@ -615,120 +616,113 @@ export class StoreManager {
    * snapshot, and pulls the snapshot of the most recently server-confirmed state.
    */
   update<T extends object = any>(
-    name: string,
+    storeName: string,
     state: object,
     config?: Partial<SyncConfig>,
   ): RouseStore<T> {
-    if (!this._data.has(name)) {
-      fail(`Store '${name}' does not exist.`);
+    const entry = this._stores.get(storeName);
+    if (!entry) {
+      fail(`Store '${storeName}' does not exist.`);
     }
 
-    const action = config?.action || this._configs.get(name)?.action || 'replace';
+    const action = config?.action || entry.config?.action || 'replace';
 
-    this._withPatchGuard(() => patchState(this._data.get(name), state, action));
-    this._initial.set(name, clone(state));
-    this._updateLastGood(name, state);
-    this._clearAllDirty(name);
+    this._withPatchGuard(() => patchState(entry.data, state, action));
+    entry.initial = clone(state);
+    entry.lastGood = clone(state);
+    this._clearAllDirty(entry);
 
     if (config) {
-      this._setConfig(name, config);
+      this._setConfig(entry, config);
     }
 
-    return this._data.get(name);
+    return entry.data;
   }
 
   /**
    * Returns the reactive proxy for a store, or `undefined`.
    */
-  get<T extends object = any>(name: string): RouseStore<T> | undefined {
-    return this._data.get(name);
+  get<T extends object = any>(storeName: string): RouseStore<T> | undefined {
+    return this._stores.get(storeName)?.data;
   }
 
   /**
    * Returns a deep-cloned non-reactive copy of the store's current data.
    */
-  snapshot<T = any>(name: string): T | undefined {
-    const data = this._data.get(name);
+  snapshot<T = any>(storeName: string): T | undefined {
+    const data = this._stores.get(storeName)?.data;
     return data ? clone(data) : undefined;
   }
 
   /**
    * Returns `true` if a store with the provided name exists.
    */
-  has(name: string): boolean {
-    return this._data.has(name);
+  has(storeName: string): boolean {
+    return this._stores.has(storeName);
   }
 
   /**
    * Returns the status object for a store, or `undefined`. Available store
    * status properties are `loading`, `error`, `lastSync`, and `dirty`.
    */
-  status(name: string): StoreStatus | undefined {
-    return this._status.get(name);
+  status(storeName: string): StoreStatus | undefined {
+    return this._stores.get(storeName)?.status;
   }
 
   /**
    * Patches `SyncConfig` for a store. Warns if the store is missing.
    */
-  config(name: string, config: Partial<SyncConfig>) {
-    if (!this.has(name)) {
-      __DEV__ && warn(`Cannot configure store '${name}': store not found.`);
+  config(storeName: string, config: Partial<SyncConfig>) {
+    const entry = this._stores.get(storeName);
+    if (!entry) {
+      __DEV__ && warn(`Cannot configure store '${storeName}': store not found.`);
       return;
     }
-    this._setConfig(name, config);
+    this._setConfig(entry, config);
   }
 
   /**
    * Triggers a manual store push with optional request overrides.
    */
-  async push(name: string, config?: StoreRequestOptions): Promise<void> {
-    return this._request(name, 'push', config);
+  async push(storeName: string, config?: StoreRequestOptions): Promise<void> {
+    return this._request(storeName, 'push', config);
   }
 
   /**
    * Pulls fresh store data from the server, unless a push is currently in flight.
    */
-  async pull(name: string, config?: StoreRequestOptions): Promise<void> {
-    if (this.status(name)?.loading === 'push') return;
-    return this._request(name, 'pull', config);
+  async pull(storeName: string, config?: StoreRequestOptions): Promise<void> {
+    if (this.status(storeName)?.loading === 'push') return;
+    return this._request(storeName, 'pull', config);
   }
 
   /**
    * Reverts a store to its initial state, clears dirty flags, and pulls
    * the snapshot of the most recently server-confirmed state.
    */
-  reset(name: string) {
-    const data = this._data.get(name);
-    const initial = this._initial.get(name);
-
-    if (!data) {
-      __DEV__ && warn(`Cannot reset store '${name}': store not found.`);
+  reset(storeName: string) {
+    const entry = this._stores.get(storeName);
+    if (!entry) {
+      __DEV__ && warn(`Cannot reset store '${storeName}': store not found.`);
       return;
     }
 
-    if (!initial) {
-      __DEV__ && warn(`Cannot reset store '${name}': no initial state cached.`);
-      return;
-    }
+    const { data, initial } = entry;
 
     this._withPatchGuard(() => patchState(data, clone(initial), 'replace'));
-    this._updateLastGood(name, data);
-    this._clearAllDirty(name);
+    this._updateLastGood(entry, data);
+    this._clearAllDirty(entry);
   }
 
   /**
    * Drops all per-store state from the manager. Existing references to the proxy
    * keep working but desync. Intended for tear-down of dynamically-created stores.
    */
-  remove(name: string) {
-    this._data.delete(name);
-    this._status.delete(name);
-    this._configs.delete(name);
-    this._elements.delete(name);
-    this._initial.delete(name);
-    this._lastGood.delete(name);
-    this._activeReqs.delete(name);
-    this._mutateListeners.delete(name);
-    this._pendingMutates.delete(name);
+  remove(storeName: string) {
+    const entry = this._stores.get(storeName);
+    if (entry) {
+      this._pendingMutates.delete(entry);
+    }
+    this._stores.delete(storeName);
   }
 }
