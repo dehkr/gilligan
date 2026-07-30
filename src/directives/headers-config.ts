@@ -12,7 +12,6 @@ function defineHeadersConfigDirective(
   slug: DirectiveSlug,
 ): ConfigDirective<Record<string, string | null>> {
   return {
-    slug,
     getConfig: (el, app) =>
       parseHeadersConfig(getDirectiveValue(el, slug), el, app, slug),
   };

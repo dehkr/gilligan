@@ -1,5 +1,5 @@
 import type { RouseApp } from '../core/app';
-import { getDirectiveValue, hasDirective } from '../core/attributes';
+import { directiveSelector, getDirectiveValue, hasDirective } from '../core/attributes';
 import { type HttpMethod, isHttpMethod } from '../core/constants';
 import { err, warn } from '../core/diagnostics';
 import type { SyncConfig } from '../core/store';
@@ -100,7 +100,7 @@ function teardown(el: HTMLScriptElement) {
 }
 
 export const rzStore = {
-  slug: 'store',
+  selector: directiveSelector('store', 'script'),
   initialize,
   teardown,
 } as const satisfies StandaloneDirective<HTMLScriptElement>;

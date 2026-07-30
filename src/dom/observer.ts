@@ -1,6 +1,8 @@
 import { getApp, type RouseApp } from '../core/app';
-import { directiveSelector, hasDirective, queryTargets } from '../core/attributes';
-import { NETWORK_DIRECTIVES, rzStore } from '../directives';
+import { hasDirective, queryTargets } from '../core/attributes';
+import { NETWORK_DIRECTIVES } from '../directives/network-ops';
+import { SCOPE_SELECTOR } from '../directives/rz-scope';
+import { rzStore } from '../directives/rz-store';
 import {
   mountGlobalBinding,
   resolveRemovedOwner,
@@ -22,10 +24,8 @@ import {
  * @returns A configured, unstarted MutationObserver instance.
  */
 export function initObserver(app: RouseApp) {
-  const scopeSelector = directiveSelector('scope');
-  const storeSelector = `script${directiveSelector('store')}`;
   const networkDirectives = NETWORK_DIRECTIVES.map(
-    (directive) => [directive, directiveSelector(directive.slug)] as const,
+    (directive) => [directive, directive.selector] as const,
   );
 
   return new MutationObserver((mutations) => {
@@ -34,21 +34,24 @@ export function initObserver(app: RouseApp) {
         if (node.nodeType === Node.ELEMENT_NODE) {
           const addedEl = node as Element;
 
-          const storeScriptEls = queryTargets<HTMLScriptElement>(addedEl, storeSelector);
+          const storeScriptEls = queryTargets<HTMLScriptElement>(
+            addedEl,
+            rzStore.selector,
+          );
           for (const el of storeScriptEls) {
             if (getApp(el, app)) {
               rzStore.initialize(el, app);
             }
           }
 
-          const scopeEls = queryTargets<HTMLElement>(addedEl, scopeSelector);
+          const scopeEls = queryTargets<HTMLElement>(addedEl, SCOPE_SELECTOR);
           for (const el of scopeEls) {
             if (getApp(el, app)) {
               initScopeElement(el, app);
             }
           }
 
-          const ownerScope = addedEl.closest<HTMLElement>(scopeSelector);
+          const ownerScope = addedEl.closest<HTMLElement>(SCOPE_SELECTOR);
 
           // Scan elements that belong to a scope, but make sure the element itself
           // isn't a scope. `closest` matches self, so a scope element would scan itself
@@ -83,13 +86,13 @@ export function initObserver(app: RouseApp) {
 
           const storeScriptEls = queryTargets<HTMLScriptElement>(
             removedEl,
-            storeSelector,
+            rzStore.selector,
           );
           for (const el of storeScriptEls) {
             rzStore.teardown(el);
           }
 
-          const scopeEls = queryTargets<HTMLElement>(removedEl, scopeSelector);
+          const scopeEls = queryTargets<HTMLElement>(removedEl, SCOPE_SELECTOR);
           for (const el of scopeEls) {
             destroyInstance(el);
           }

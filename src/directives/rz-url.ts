@@ -13,7 +13,4 @@ function getConfig(el: Element): { url: string } {
   return { url: getDirectiveValue(el, 'url')?.trim() ?? '' };
 }
 
-export const rzUrl = {
-  slug: 'url',
-  getConfig,
-} as const satisfies ConfigDirective<{ url: string }>;
+export const rzUrl = { getConfig } as const satisfies ConfigDirective<{ url: string }>;

@@ -1,5 +1,6 @@
 import { effect } from 'alien-signals';
 import type { RouseApp } from '../core/app';
+import { directiveSelector } from '../core/attributes';
 import { warn } from '../core/diagnostics';
 import { is } from '../core/is';
 import { parseTriggers } from '../core/parser';
@@ -87,5 +88,6 @@ function bind(
 
 export const rzModel = {
   slug: 'model',
+  selector: directiveSelector('model'),
   bind,
 } as const satisfies BoundDirective;

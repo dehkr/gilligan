@@ -5,7 +5,6 @@ import type { ConfigDirective, TriggerDef } from '../types';
 
 function getConfig(el: Element, app: RouseApp): TriggerDef[] {
   const wakeTriggers = parseTriggers(getDirectiveValue(el, 'wake'));
-
   if (wakeTriggers.length === 0) {
     const wakeTriggersConfig = parseTriggers(app.config.wake);
 
@@ -14,11 +13,7 @@ function getConfig(el: Element, app: RouseApp): TriggerDef[] {
       ? [{ event: 'ready', modifiers: [] }]
       : wakeTriggersConfig;
   }
-
   return wakeTriggers;
 }
 
-export const rzWake = {
-  slug: 'wake',
-  getConfig,
-} as const satisfies ConfigDirective<TriggerDef[]>;
+export const rzWake = { getConfig } as const satisfies ConfigDirective<TriggerDef[]>;

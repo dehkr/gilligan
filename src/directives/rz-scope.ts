@@ -1,4 +1,4 @@
-import { getDirectiveValue } from '../core/attributes';
+import { directiveSelector, getDirectiveValue } from '../core/attributes';
 import { splitInjection } from '../core/injection';
 import type { ConfigDirective } from '../types';
 
@@ -13,10 +13,9 @@ function getConfig(
   return { scopeName, rawPayload };
 }
 
-export const rzScope = {
-  slug: 'scope',
-  getConfig,
-} as const satisfies ConfigDirective<{
+export const SCOPE_SELECTOR = directiveSelector('scope');
+
+export const rzScope = { getConfig } as const satisfies ConfigDirective<{
   scopeName: string;
   rawPayload: string | undefined;
 } | null>;

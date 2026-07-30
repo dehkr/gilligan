@@ -1,5 +1,4 @@
 import {
-  NETWORK_DIRECTIVES,
   rzAttr,
   rzClass,
   rzHtml,
@@ -11,6 +10,8 @@ import {
   rzStyle,
   rzText,
 } from '../directives';
+import { NETWORK_DIRECTIVES } from '../directives/network-ops';
+import { SCOPE_SELECTOR } from '../directives/rz-scope';
 import {
   mountGlobalBinding,
   registerBoundDirectives,
@@ -35,7 +36,7 @@ import type {
   ScopeSetup,
   VoidFn,
 } from '../types';
-import { directiveSelector, queryTargets } from './attributes';
+import { queryTargets } from './attributes';
 import { err, fail, warn } from './diagnostics';
 import { ScopeRegistry } from './scope-registry';
 import { StoreManager, type SyncConfig } from './store';
@@ -358,10 +359,7 @@ export class RouseApp {
     initStoreRouter(this, this._abortController.signal);
 
     // Scan for store <script> elements first to ensure state exists for bindings
-    const storeScriptEls = queryTargets<HTMLScriptElement>(
-      this.root,
-      `script${directiveSelector('store')}`,
-    );
+    const storeScriptEls = queryTargets<HTMLScriptElement>(this.root, rzStore.selector);
     for (const el of storeScriptEls) {
       if (getApp(el, this)) {
         rzStore.initialize(el, this);
@@ -371,7 +369,7 @@ export class RouseApp {
     this._observer = initObserver(this);
     this._observer.observe(this.root, { childList: true, subtree: true });
 
-    const scopeEls = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
+    const scopeEls = queryTargets<HTMLElement>(this.root, SCOPE_SELECTOR);
     for (const el of scopeEls) {
       if (getApp(el, this)) {
         initScopeElement(el, this);
@@ -379,7 +377,7 @@ export class RouseApp {
     }
 
     for (const directive of NETWORK_DIRECTIVES) {
-      const networkEls = queryTargets(this.root, directiveSelector(directive.slug));
+      const networkEls = queryTargets(this.root, directive.selector);
       for (const el of networkEls) {
         if (getApp(el, this)) {
           directive.initialize(el, this);
@@ -387,7 +385,7 @@ export class RouseApp {
       }
     }
 
-    if (!this.root.closest(directiveSelector('scope'))) {
+    if (!this.root.closest(SCOPE_SELECTOR)) {
       walkBoundElements(this.root, (el) => {
         if (!getApp(el, this)) return;
         mountGlobalBinding(el, this);
@@ -415,13 +413,13 @@ export class RouseApp {
 
     this._observer?.disconnect();
 
-    const scopeEls = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
+    const scopeEls = queryTargets<HTMLElement>(this.root, SCOPE_SELECTOR);
     for (const el of scopeEls) {
       destroyInstance(el);
     }
 
     for (const directive of NETWORK_DIRECTIVES) {
-      const networkEls = queryTargets(this.root, directiveSelector(directive.slug));
+      const networkEls = queryTargets(this.root, directive.selector);
       for (const el of networkEls) {
         directive.teardown(el);
       }

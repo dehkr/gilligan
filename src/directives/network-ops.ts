@@ -1,5 +1,5 @@
 import type { RouseApp } from '../core/app';
-import { getDirectiveValue } from '../core/attributes';
+import { directiveSelector, getDirectiveValue } from '../core/attributes';
 import type { PatchAction } from '../core/constants';
 import { warn } from '../core/diagnostics';
 import { is, isNativeNavigation } from '../core/is';
@@ -44,8 +44,7 @@ function defineNetworkOpDirective(
   const elementCleanups = new WeakMap<Element, VoidFn[]>();
 
   return {
-    slug,
-
+    selector: directiveSelector(slug),
     initialize(el: Element, app: RouseApp) {
       if (elementCleanups.has(el)) return;
 
@@ -67,7 +66,6 @@ function defineNetworkOpDirective(
         elementCleanups.set(el, cleanups);
       }
     },
-
     teardown(el: Element) {
       elementCleanups.get(el)?.forEach((fn) => fn());
       elementCleanups.delete(el);

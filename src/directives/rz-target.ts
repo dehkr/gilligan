@@ -87,7 +87,4 @@ function queryEls(appRoot: Element, selector: string): Element[] {
   return targets;
 }
 
-export const rzTarget = {
-  slug: 'target',
-  getConfig,
-} as const satisfies ConfigDirective<TargetConfig>;
+export const rzTarget = { getConfig } as const satisfies ConfigDirective<TargetConfig>;

@@ -14,7 +14,4 @@ function getConfig(el: Element): string | null {
   return getDirectiveValue(el, 'key')?.trim() || null;
 }
 
-export const rzKey = {
-  slug: 'key',
-  getConfig,
-} as const satisfies ConfigDirective<string | null>;
+export const rzKey = { getConfig } as const satisfies ConfigDirective<string | null>;

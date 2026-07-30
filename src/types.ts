@@ -346,20 +346,18 @@ export type TriggerSubjectPair = {
   subject: string | null;
 };
 
-/** Shared base interface for all directives. */
-export interface BaseDirective {
-  /** The `rz-*` attribute name (prefix omitted) this directive handles. */
-  slug: DirectiveSlug;
-}
-
 /** A stateless directive used to parse DOM attributes into a typed configuration object. */
-export interface ConfigDirective<T> extends BaseDirective {
+export interface ConfigDirective<T> {
   /** Parse the element's attributes into the typed config `T`. Pure. No lifecycle, read on demand. */
   getConfig: (el: Element, ...args: any[]) => T;
 }
 
 /** Represents a persistent data or event binding between the DOM and application state. */
-export interface BoundDirective extends BaseDirective {
+export interface BoundDirective {
+  /** The `rz-*` attribute name (prefix omitted) this directive handles. */
+  slug: DirectiveSlug;
+  /** CSS selector string for elements with this directive. */
+  selector: string;
   /**
    * Attach the binding for one pre-split `[key: value]` segment: `key` is the trigger/token,
    * `value` the subject. `scope` is the owning `Scope`, or `EMPTY_SCOPE` when globally mounted.
@@ -375,7 +373,9 @@ export interface BoundDirective extends BaseDirective {
 }
 
 /** A directive that manages its own explicit initialization and teardown lifecycle. */
-export interface StandaloneDirective<T extends Element = Element> extends BaseDirective {
+export interface StandaloneDirective<T extends Element = Element> {
+  /** CSS selector string for elements with this directive. */
+  selector: string;
   /** Set up the directive on `el`. Called by the initial scan and the mutation observer's add branch. */
   initialize: (el: T, app: RouseApp) => void;
   /** Tear down the directive when `el` leaves the DOM. */

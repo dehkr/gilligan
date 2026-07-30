@@ -1,4 +1,5 @@
 import type { RouseApp } from '../core/app';
+import { directiveSelector } from '../core/attributes';
 import { STORE_PREFIX } from '../core/constants';
 import { warn } from '../core/diagnostics';
 import { invokeHandler, splitInjection } from '../core/injection';
@@ -89,5 +90,6 @@ function bind(
 
 export const rzOn = {
   slug: 'on',
+  selector: directiveSelector('on'),
   bind,
 } as const satisfies BoundDirective;

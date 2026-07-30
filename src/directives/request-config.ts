@@ -14,7 +14,6 @@ function defineRequestConfigDirective(
   slug: DirectiveSlug,
 ): ConfigDirective<Partial<RouseRequest>> {
   return {
-    slug,
     getConfig: (el, app) => parseRequestConfig(getDirectiveValue(el, slug), app),
   };
 }

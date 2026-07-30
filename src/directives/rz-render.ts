@@ -1,4 +1,5 @@
 import type { RouseApp } from '../core/app';
+import { directiveSelector } from '../core/attributes';
 import { warn } from '../core/diagnostics';
 import { resolveBoundValue } from '../core/injection';
 import { renderTemplate } from '../dom/renderer';
@@ -38,5 +39,6 @@ function bind(
 
 export const rzRender = {
   slug: 'render',
+  selector: directiveSelector('render'),
   bind,
 } as const satisfies BoundDirective;

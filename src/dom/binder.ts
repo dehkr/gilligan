@@ -1,8 +1,9 @@
 import type { RouseApp } from '../core/app';
-import { directiveSelector, getDirectiveValue } from '../core/attributes';
+import { getDirectiveValue } from '../core/attributes';
 import { err } from '../core/diagnostics';
 import { parseDirectiveValue } from '../core/parser';
 import { EMPTY_SCOPE } from '../core/resolve';
+import { SCOPE_SELECTOR } from '../directives/rz-scope';
 import type { BoundCleanupFn, BoundDirective, Scope } from '../types';
 import { dispatch } from './events';
 
@@ -16,8 +17,6 @@ const renderOwned = new WeakSet<Element>();
 const boundDirectiveList: BoundDirective[] = [];
 /** Cache for the generated selector string. */
 let boundSelectorCache: string | null = null;
-/** rz-scope selector string. */
-const scopeSelector = directiveSelector('scope');
 
 /**
  * Registers the directives the binder scans for and binds.
@@ -37,7 +36,7 @@ export function registerBoundDirectives(...directives: BoundDirective[]): void {
  */
 function boundDirectivesSelector(): string {
   boundSelectorCache ??= boundDirectiveList
-    .map((directive) => directiveSelector(directive.slug))
+    .map((directive) => directive.selector)
     .join(', ');
 
   return boundSelectorCache;
@@ -83,7 +82,9 @@ export function bindDirectives(
     const parsed = parseDirectiveValue(value);
     for (const [key, val] of parsed) {
       const cleanup = directive.bind(el, scope, app, key, val ?? '');
-      if (cleanup) cleanups.push(cleanup);
+      if (cleanup) {
+        cleanups.push(cleanup);
+      }
     }
   }
 
@@ -106,7 +107,7 @@ export function walkBoundElements(
 ): void {
   // If root is itself a scope and the caller hasn't opted in,
   // the entire subtree is scope-owned.
-  if (!options?.acceptScopeRoot && root.matches(scopeSelector)) return;
+  if (!options?.acceptScopeRoot && root.matches(SCOPE_SELECTOR)) return;
 
   // Render-owned subtrees are bound by `rz-render` itself, with item context
   if (isRenderOwned(root)) return;
@@ -119,7 +120,7 @@ export function walkBoundElements(
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
     acceptNode(node) {
       const el = node as Element;
-      if (el.matches(scopeSelector) || isRenderOwned(el)) {
+      if (el.matches(SCOPE_SELECTOR) || isRenderOwned(el)) {
         return NodeFilter.FILTER_REJECT;
       }
 
@@ -249,7 +250,7 @@ export function bindScope(
   }
 
   function scan(startEl: Element) {
-    const owner = startEl.closest(scopeSelector);
+    const owner = startEl.closest(SCOPE_SELECTOR);
     if (!owner || owner !== root) return;
 
     walkBoundElements(startEl, bindNode, {
