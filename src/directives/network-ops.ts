@@ -24,6 +24,12 @@ import type {
 } from '../types';
 import { rzUrl } from './rz-url';
 
+const EXAMPLES = {
+  fetch: 'click: /users',
+  push: 'click: @users',
+  pull: 'page-visible: @users',
+} as const;
+
 /**
  * Factory for the network directives (rz-fetch, rz-push, rz-pull), which share
  * the `[trigger]: [subject]` grammar. Owns the per-element cleanup registry and
@@ -33,7 +39,6 @@ import { rzUrl } from './rz-url';
  */
 function defineNetworkOpDirective(
   slug: Extract<DirectiveSlug, 'fetch' | 'push' | 'pull'>,
-  example: string,
   bindPairs: (el: Element, app: RouseApp, pairs: TriggerSubjectPair[]) => VoidFn[],
 ): StandaloneDirective {
   const elementCleanups = new WeakMap<Element, VoidFn[]>();
@@ -51,7 +56,7 @@ function defineNetworkOpDirective(
       if (pairs.length === 0) {
         __DEV__ &&
           warn(
-            `rz-${slug}: at least one trigger is required (e.g., rz-${slug}="${example}").`,
+            `rz-${slug}: at least one trigger is required (e.g., rz-${slug}="${EXAMPLES[slug]}").`,
             el,
           );
         return;
@@ -261,22 +266,14 @@ function bindStoreEditTrigger(
   };
 }
 
-export const rzFetch = defineNetworkOpDirective(
-  'fetch',
-  'click: /api/users',
-  bindFetchPairs,
+export const rzFetch = defineNetworkOpDirective('fetch', bindFetchPairs);
+
+export const rzPush = defineNetworkOpDirective('push', (el, app, pairs) =>
+  bindStorePairs('push', el, app, pairs),
 );
 
-export const rzPush = defineNetworkOpDirective(
-  'push',
-  'click: @users',
-  (el, app, pairs) => bindStorePairs('push', el, app, pairs),
-);
-
-export const rzPull = defineNetworkOpDirective(
-  'pull',
-  'page-visible: @users',
-  (el, app, pairs) => bindStorePairs('pull', el, app, pairs),
+export const rzPull = defineNetworkOpDirective('pull', (el, app, pairs) =>
+  bindStorePairs('pull', el, app, pairs),
 );
 
 export const NETWORK_DIRECTIVES = [rzFetch, rzPush, rzPull];
