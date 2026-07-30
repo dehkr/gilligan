@@ -29,79 +29,91 @@ export function initObserver(app: RouseApp) {
   );
 
   return new MutationObserver((mutations) => {
-    mutations.forEach((m) => {
-      m.addedNodes.forEach((node) => {
+    for (const mutation of mutations) {
+      for (const node of mutation.addedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as Element;
+          const addedEl = node as Element;
 
-          queryTargets(el, storeSelector).forEach((el) => {
-            if (rzStore.validate(el, app)) {
+          const storeScriptEls = queryTargets<HTMLScriptElement>(addedEl, storeSelector);
+          for (const el of storeScriptEls) {
+            if (getApp(el, app)) {
               rzStore.initialize(el, app);
             }
-          });
+          }
 
-          queryTargets<HTMLElement>(el, scopeSelector).forEach((el) => {
-            // Confirm app ownership in case of nested apps
+          const scopeEls = queryTargets<HTMLElement>(addedEl, scopeSelector);
+          for (const el of scopeEls) {
             if (getApp(el, app)) {
               initScopeElement(el, app);
             }
-          });
+          }
 
-          const ownerScope = el.closest<HTMLElement>(scopeSelector);
+          const ownerScope = addedEl.closest<HTMLElement>(scopeSelector);
 
           // Scan elements that belong to a scope, but make sure the element itself
           // isn't a scope. `closest` matches self, so a scope element would scan itself
           // and double-bind (`initScopeElement` already handled it above).
-          if (ownerScope && !hasDirective(el, 'scope') && getApp(ownerScope, app)) {
-            scanScopeNode(ownerScope, el);
+          if (ownerScope && !hasDirective(addedEl, 'scope') && getApp(ownerScope, app)) {
+            scanScopeNode(ownerScope, addedEl);
           }
 
           for (const [directive, selector] of networkDirectives) {
-            queryTargets(el, selector).forEach((el) => {
+            const networkEls = queryTargets(addedEl, selector);
+            for (const el of networkEls) {
               if (getApp(el, app)) {
                 directive.initialize(el, app);
               }
-            });
+            }
           }
 
           // If the newly added element doesn't belong to a scope, walk its
           // tree and auto-mount any bound directives globally.
           if (!ownerScope) {
-            walkBoundElements(el, (boundEl) => {
+            walkBoundElements(addedEl, (boundEl) => {
               if (!getApp(boundEl, app)) return;
               mountGlobalBinding(boundEl, app);
             });
           }
         }
-      });
+      }
 
-      m.removedNodes.forEach((node) => {
+      for (const node of mutation.removedNodes) {
         if (node.nodeType === Node.ELEMENT_NODE) {
-          const el = node as Element;
+          const removedEl = node as Element;
 
-          queryTargets<HTMLScriptElement>(el, storeSelector).forEach((el) => {
+          const storeScriptEls = queryTargets<HTMLScriptElement>(
+            removedEl,
+            storeSelector,
+          );
+          for (const el of storeScriptEls) {
             rzStore.teardown(el);
-          });
+          }
 
-          queryTargets<HTMLElement>(el, scopeSelector).forEach(destroyInstance);
+          const scopeEls = queryTargets<HTMLElement>(removedEl, scopeSelector);
+          for (const el of scopeEls) {
+            destroyInstance(el);
+          }
 
           // Ownership resolved against the `scopeBindings` WeakMap, not DOM
           // ancestry. Survives detached parents, cross-boundary moves, and
           // sync-detachment edge cases.
-          const ownerScope = resolveRemovedOwner(el);
-          if (ownerScope && !hasDirective(el, 'scope')) {
-            teardownScopeNode(ownerScope, el);
+          const ownerScope = resolveRemovedOwner(removedEl);
+          if (ownerScope && !hasDirective(removedEl, 'scope')) {
+            teardownScopeNode(ownerScope, removedEl);
           }
 
           for (const [directive, selector] of networkDirectives) {
-            queryTargets<HTMLElement>(el, selector).forEach(directive.teardown);
+            const networkEls = queryTargets(removedEl, selector);
+            for (const el of networkEls) {
+              directive.teardown(el);
+            }
           }
 
           if (!ownerScope) {
-            teardownGlobalBindings(el);
+            teardownGlobalBindings(removedEl);
           }
         }
-      });
-    });
+      }
+    }
   });
 }

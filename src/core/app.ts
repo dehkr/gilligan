@@ -357,33 +357,34 @@ export class RouseApp {
     initDomRouter(this, this._abortController.signal);
     initStoreRouter(this, this._abortController.signal);
 
-    // Scan for store <script> elements to ensure state exists first
-    const storeScriptElements = queryTargets(
+    // Scan for store <script> elements first to ensure state exists for bindings
+    const storeScriptEls = queryTargets<HTMLScriptElement>(
       this.root,
       `script${directiveSelector('store')}`,
     );
-    storeScriptElements.forEach((el) => {
-      if (rzStore.validate(el, this)) {
+    for (const el of storeScriptEls) {
+      if (getApp(el, this)) {
         rzStore.initialize(el, this);
       }
-    });
+    }
 
     this._observer = initObserver(this);
     this._observer.observe(this.root, { childList: true, subtree: true });
 
-    const scopes = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
-    scopes.forEach((el) => {
+    const scopeEls = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
+    for (const el of scopeEls) {
       if (getApp(el, this)) {
         initScopeElement(el, this);
       }
-    });
+    }
 
-    for (const d of NETWORK_DIRECTIVES) {
-      queryTargets(this.root, directiveSelector(d.slug)).forEach((el) => {
+    for (const directive of NETWORK_DIRECTIVES) {
+      const networkEls = queryTargets(this.root, directiveSelector(directive.slug));
+      for (const el of networkEls) {
         if (getApp(el, this)) {
-          d.initialize(el, this);
+          directive.initialize(el, this);
         }
-      });
+      }
     }
 
     if (!this.root.closest(directiveSelector('scope'))) {
@@ -414,15 +415,22 @@ export class RouseApp {
 
     this._observer?.disconnect();
 
-    const scopes = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
-    scopes.forEach(destroyInstance);
-
-    for (const d of NETWORK_DIRECTIVES) {
-      queryTargets(this.root, directiveSelector(d.slug)).forEach(d.teardown);
+    const scopeEls = queryTargets<HTMLElement>(this.root, directiveSelector('scope'));
+    for (const el of scopeEls) {
+      destroyInstance(el);
     }
+
+    for (const directive of NETWORK_DIRECTIVES) {
+      const networkEls = queryTargets(this.root, directiveSelector(directive.slug));
+      for (const el of networkEls) {
+        directive.teardown(el);
+      }
+    }
+
     for (const el of this.stores.elements()) {
       rzStore.teardown(el as HTMLScriptElement);
     }
+
     teardownGlobalBindings(this.root);
 
     dispatch(this.root, 'rz:app:destroy', { app: this });

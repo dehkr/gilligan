@@ -382,12 +382,6 @@ export interface StandaloneDirective<T extends Element = Element> extends BaseDi
   teardown: (el: T) => void;
 }
 
-/** A specialized `StandaloneDirective` explicitly tailored for `<script rz-store>` tags. */
-export interface StoreDirective extends StandaloneDirective<HTMLScriptElement> {
-  /** Type-guard run before `initialize` to confirm `el` is a usable `<script rz-store>` tag. */
-  validate: (el: Element, app: RouseApp) => el is HTMLScriptElement;
-}
-
 /** The kind of network action a directive describes. */
 export type NetworkAction = 'fetch' | 'push' | 'pull';
 

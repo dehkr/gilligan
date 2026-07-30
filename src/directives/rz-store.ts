@@ -1,10 +1,9 @@
-import { getApp, type RouseApp } from '../core/app';
+import type { RouseApp } from '../core/app';
 import { getDirectiveValue, hasDirective } from '../core/attributes';
 import { type HttpMethod, isHttpMethod } from '../core/constants';
 import { err, warn } from '../core/diagnostics';
-import { is } from '../core/is';
 import type { SyncConfig } from '../core/store';
-import type { StoreDirective } from '../types';
+import type { StandaloneDirective } from '../types';
 import { rzPullRequest, rzPushRequest, rzRequest } from './request-config';
 import { rzUrl } from './rz-url';
 
@@ -21,7 +20,10 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
   if (initialized.has(el)) return;
 
   const storeName = getDirectiveValue(el, 'store')?.trim();
-  if (!storeName) return;
+  if (!storeName) {
+    __DEV__ && warn(`rz-store: value is missing or empty.`, el);
+    return;
+  }
 
   const textContent = el.textContent?.trim();
   const storeExists = app.stores.has(storeName);
@@ -48,23 +50,26 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
 
   const cfg: Partial<SyncConfig> = {};
 
-  // Seed the store URL from `rz-url`
   if (hasDirective(el, 'url')) {
     const { url } = rzUrl.getConfig(el);
     if (url) cfg.url = url;
   }
 
-  // Capture declarative rollback config for store-level default
   const reqBase = rzRequest.getConfig(el, app);
   const reqPush = rzPushRequest.getConfig(el, app);
   const reqPull = rzPullRequest.getConfig(el, app);
 
   const pushMethod = resolveMethod(reqPush.method ?? reqBase.method, el);
+  if (pushMethod) {
+    cfg.pushMethod = pushMethod;
+  }
+
   const pullMethod = resolveMethod(reqPull.method ?? reqBase.method, el);
+  if (pullMethod) {
+    cfg.pullMethod = pullMethod;
+  }
 
-  if (pushMethod) cfg.pushMethod = pushMethod;
-  if (pullMethod) cfg.pullMethod = pullMethod;
-
+  // Rollback is push-only
   const rollbackOnError = reqPush.rollbackOnError ?? reqBase.rollbackOnError;
   if (rollbackOnError !== undefined) {
     cfg.rollbackOnError = rollbackOnError;
@@ -90,28 +95,12 @@ function resolveMethod(method: string | undefined, el: Element): HttpMethod | un
   return method.toUpperCase() as HttpMethod;
 }
 
-/**
- * Validates if `el` is a script element hosting an `rz-store` directive with a value.
- */
-function validate(el: Element, app: RouseApp): el is HTMLScriptElement {
-  if (!(is(el, 'Script') && hasDirective(el, 'store') && getApp(el, app))) {
-    return false;
-  }
-  if (!getDirectiveValue(el, 'store')?.trim()) {
-    __DEV__ && warn(`rz-store: value is missing or empty.`, el);
-    return false;
-  }
-
-  return true;
-}
-
 function teardown(el: HTMLScriptElement) {
   initialized.delete(el);
 }
 
 export const rzStore = {
   slug: 'store',
-  validate,
   initialize,
   teardown,
-} as const satisfies StoreDirective;
+} as const satisfies StandaloneDirective<HTMLScriptElement>;
