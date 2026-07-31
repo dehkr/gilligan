@@ -18,23 +18,17 @@ export const methodIntercepts: Record<string | symbol, AnyFn> = {};
  * in proxies before returning.
  */
 function runOnRaw(proxy: any[], method: string, args: any[], wrapResult = false) {
-  const raw = getRaw(proxy) as any;
-  getSignal(raw, ITERATION_KEY)();
+  const raw = trackedRaw(proxy);
+  // For reduce methods, pass the accumulator through unproxied
+  const isReduce = method === 'reduce' || method === 'reduceRight';
 
   const wrappedArgs = args.map((arg) => {
-    if (typeof arg === 'function') {
-      if (method === 'reduce' || method === 'reduceRight') {
-        // For reduce methods, pass the accumulator through unproxied
-        return (acc: any, item: any, index: number, _arr: any) => {
-          return arg.call(proxy, acc, reactive(item), index, proxy);
-        };
-      } else {
-        return (item: any, index: number, _arr: any) => {
-          return arg.call(proxy, reactive(item), index, proxy);
-        };
-      }
-    }
-    return arg;
+    if (typeof arg !== 'function') return arg;
+
+    return isReduce
+      ? (acc: any, item: any, index: number) =>
+          arg.call(proxy, acc, reactive(item), index, proxy)
+      : (item: any, index: number) => arg.call(proxy, reactive(item), index, proxy);
   });
 
   const result = raw[method](...wrappedArgs);
@@ -47,6 +41,16 @@ function runOnRaw(proxy: any[], method: string, args: any[], wrapResult = false)
   }
 
   return result;
+}
+
+/**
+ * Unwraps to the raw array and registers the iteration dependency, so any read
+ * performed through it re-runs the surrounding effect when the array mutates.
+ */
+function trackedRaw(proxy: any[]) {
+  const raw = getRaw(proxy) as any;
+  getSignal(raw, ITERATION_KEY)();
+  return raw;
 }
 
 const MUTATORS = [
@@ -75,7 +79,7 @@ for (const key of MUTATORS) {
 
       const tracker = dirtyTrackers.get(raw);
       if (tracker) {
-        const rootKey = objectRootKeys.get(raw) ?? 'root'; // Fallback for raw arrays
+        const rootKey = objectRootKeys.get(raw) ?? 'root';
         tracker(rootKey);
       }
       return result;
@@ -90,9 +94,7 @@ const SEARCHERS = ['includes', 'indexOf', 'lastIndexOf'] as const;
 // Track iteration, run on raw, and retry with raw args if search fails (handles proxies)
 for (const key of SEARCHERS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
-    const raw = getRaw(this) as any;
-    getSignal(raw, ITERATION_KEY)();
-
+    const raw = trackedRaw(this);
     let result = raw[key](...args);
     // Try unwrapping args (in case a proxy was passed to search)
     if (result === -1 || result === false) {
@@ -108,9 +110,7 @@ const ITERATORS = ['entries', 'keys', 'values', Symbol.iterator] as const;
 // Track iteration, get raw iterator, and yield reactive proxies for safe loops
 for (const key of ITERATORS) {
   methodIntercepts[key] = function* (this: any[]) {
-    const raw = getRaw(this) as any;
-    getSignal(raw, ITERATION_KEY)();
-
+    const raw = trackedRaw(this);
     const iterator = raw[key]();
     for (const val of iterator) {
       yield reactive(val);
@@ -164,8 +164,7 @@ const STRINGIFIERS = ['join', 'toString', 'toLocaleString'] as const;
 // Track iteration and run on raw to ensure dependency registration
 for (const key of STRINGIFIERS) {
   methodIntercepts[key] = function (this: any[], ...args: any[]) {
-    const raw = getRaw(this) as any;
-    getSignal(raw, ITERATION_KEY)();
+    const raw = trackedRaw(this);
     return raw[key](...args);
   };
 }
