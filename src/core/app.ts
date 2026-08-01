@@ -37,7 +37,7 @@ import type {
   VoidFn,
 } from '../types';
 import { queryTargets } from './attributes';
-import { err, fail, warn } from './diagnostics';
+import { err, fail, info, warn } from './diagnostics';
 import { ScopeRegistry } from './scope-registry';
 import { StoreManager, type SyncConfig } from './store';
 
@@ -64,6 +64,15 @@ interface ResolvedConfig {
 }
 
 const appInstances = new WeakMap<HTMLElement, RouseApp>();
+
+let bannerLogged = false;
+
+/** One-time dev-build notice. Message and latch are both stripped from the min build. */
+function logBuildBanner() {
+  if (bannerLogged) return;
+  bannerLogged = true;
+  info(`v${__VERSION__} development build. Switch to rouse.min.js in production.`);
+}
 
 registerBoundDirectives(
   rzAttr,
@@ -131,6 +140,8 @@ export class RouseApp {
    * @throws If the root cannot be found, or already has an app attached.
    */
   constructor(config: RouseConfig = {}) {
+    __DEV__ && logBuildBanner();
+
     const rootEl =
       typeof config.root === 'string'
         ? (document.querySelector(config.root) as HTMLElement)

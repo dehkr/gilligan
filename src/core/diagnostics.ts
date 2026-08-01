@@ -1,3 +1,7 @@
+export function info(msg: string, ...args: any[]) {
+  console.info(`[Rouse] ${msg}`, ...args);
+}
+
 export function warn(msg: string, ...args: any[]) {
   console.warn(`[Rouse] ${msg}`, ...args);
 }
