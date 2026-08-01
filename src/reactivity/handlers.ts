@@ -1,6 +1,13 @@
 import { computed, signal, trigger } from 'alien-signals';
 import { methodIntercepts } from './arrays';
-import { dirtyTrackers, getRaw, objectRootKeys, proxiable, reactive } from './reactive';
+import {
+  dirtyTrackers,
+  getRaw,
+  objectRootKeys,
+  proxiable,
+  reactive,
+  untracked,
+} from './reactive';
 
 export const ITERATION_KEY = Symbol('rz.iteration');
 
@@ -66,9 +73,10 @@ export const handlers: ProxyHandler<object> = {
     if (value !== oldValue) {
       const sig = getSignal(target, key);
 
-      // If the value actually changed (reference change), set it.
-      // If it's the same object (mutation), use trigger.
-      value !== sig() ? sig(value) : trigger(sig);
+      // If the value actually changed (reference change), set it. If it's the same
+      // object (mutation), use trigger. Reading untracked keeps a writing effect from
+      // subscribing to the key it writes, which would wake it on unrelated writes.
+      value !== untracked(sig) ? sig(value) : trigger(sig);
 
       const tracker = dirtyTrackers.get(target);
       if (tracker) {
