@@ -10,9 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add the `indicator` option to the `rz-request` family. Accepts a CSS selector for elements to receive the `rouse-request` class for the duration of the request. Defaults to the triggering element; `indicator: null` suppresses the class.
+- Add `development` and `production` export conditions, so bundlers that set them (Vite, webpack) resolve to the development build while developing and the minified one when building.
+- Add a `rousejs/dev` subpath that resolves to the development build.
 
 ### Changed
 
+- **Breaking:** Resolve `rousejs` to the minified build by default instead of the development build, which was shipping diagnostics to production. Use `rousejs/dev` for diagnostics in tools that don't set the `development` condition.
 - **Breaking:** Rename the in-flight class from `rz-loading` to `rouse-request`.
 - **Breaking:** Rename `rz:store:sync:conflict` to `rz:store:sync:skipped` and drop its `reason` field.
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
