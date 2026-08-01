@@ -25,7 +25,7 @@ export const handlers: ProxyHandler<object> = {
     // Accessor: wrap getters in `computed` so reads track deps and
     // re-evaluate when those deps change.
     const desc = Object.getOwnPropertyDescriptor(target, key);
-    if (desc && typeof desc.get === 'function') {
+    if (desc?.get) {
       const comp = getComputed(target, key, desc.get, receiver)();
       return reactive(comp);
     }
@@ -37,11 +37,7 @@ export const handlers: ProxyHandler<object> = {
       const rawChild = getRaw(value);
       const parentTracker = dirtyTrackers.get(target);
 
-      if (
-        parentTracker &&
-        !dirtyTrackers.has(rawChild) &&
-        Object.getOwnPropertyDescriptor(target, key)?.enumerable !== false
-      ) {
+      if (parentTracker && !dirtyTrackers.has(rawChild) && desc?.enumerable !== false) {
         dirtyTrackers.set(rawChild, parentTracker);
         objectRootKeys.set(rawChild, getRootKey(target, key));
       }
@@ -59,7 +55,7 @@ export const handlers: ProxyHandler<object> = {
     // Accessor: delegate to the setter if defined. Otherwise `Reflect.set`
     // returns `false` which would cause the write to throw in JS strict mode.
     const desc = Object.getOwnPropertyDescriptor(target, key);
-    if (desc && (typeof desc.get === 'function' || typeof desc.set === 'function')) {
+    if (desc?.get || desc?.set) {
       return Reflect.set(target, key, value, receiver);
     }
 
@@ -84,10 +80,7 @@ export const handlers: ProxyHandler<object> = {
         // Propagate the tracker to the newly-assigned object
         if (proxiable(value)) {
           const rawNew = getRaw(value);
-          if (
-            !dirtyTrackers.has(rawNew) &&
-            Object.getOwnPropertyDescriptor(target, key)?.enumerable !== false
-          ) {
+          if (!dirtyTrackers.has(rawNew) && desc?.enumerable !== false) {
             dirtyTrackers.set(rawNew, tracker);
             objectRootKeys.set(rawNew, getRootKey(target, key));
           }
@@ -103,8 +96,7 @@ export const handlers: ProxyHandler<object> = {
   },
 
   ownKeys(target: Record<string | symbol, unknown>): (string | symbol)[] {
-    const sig = getSignal(target, Array.isArray(target) ? 'length' : ITERATION_KEY);
-    sig();
+    getSignal(target, Array.isArray(target) ? 'length' : ITERATION_KEY)();
     return Reflect.ownKeys(target);
   },
 
