@@ -57,13 +57,6 @@ export function unmarkRenderOwned(el: Element): void {
 }
 
 /**
- * Checks whether an element is a render-owned instance root.
- */
-function isRenderOwned(el: Element): boolean {
-  return renderOwned.has(el);
-}
-
-/**
  * Executes the attachment lifecycle for all bound directives on a specific element.
  */
 export function bindDirectives(
@@ -110,7 +103,7 @@ export function walkBoundElements(
   if (!options?.acceptScopeRoot && root.matches(SCOPE_SELECTOR)) return;
 
   // Render-owned subtrees are bound by `rz-render` itself, with item context
-  if (isRenderOwned(root)) return;
+  if (renderOwned.has(root)) return;
 
   const boundSelector = boundDirectivesSelector();
   if (root.matches(boundSelector)) {
@@ -120,7 +113,7 @@ export function walkBoundElements(
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT, {
     acceptNode(node) {
       const el = node as Element;
-      if (el.matches(SCOPE_SELECTOR) || isRenderOwned(el)) {
+      if (el.matches(SCOPE_SELECTOR) || renderOwned.has(el)) {
         return NodeFilter.FILTER_REJECT;
       }
 
@@ -178,7 +171,9 @@ export function resolveRemovedOwner(el: Element): HTMLElement | null {
   walkBoundElements(el, (boundEl) => {
     if (!found) {
       const owner = scopeBindings.get(boundEl);
-      if (owner) found = owner;
+      if (owner) {
+        found = owner;
+      }
     }
   });
 
@@ -219,15 +214,6 @@ export function bindScope(
   const elementCleanups = new Map<Element, BoundCleanupFn[]>();
   const boundNodes = new WeakSet<Element>();
 
-  function addCleanup(el: Element, fn: BoundCleanupFn) {
-    const cleanups = elementCleanups.get(el) ?? [];
-    if (!elementCleanups.has(el)) {
-      elementCleanups.set(el, cleanups);
-      scopeBindings.set(el, root);
-    }
-    cleanups.push(fn);
-  }
-
   function runCleanup(el: Element) {
     boundNodes.delete(el);
 
@@ -244,9 +230,10 @@ export function bindScope(
     boundNodes.add(el);
 
     const cleanups = bindDirectives(el, instance, app);
-    for (const fn of cleanups) {
-      addCleanup(el, fn);
-    }
+    if (!cleanups.length) return;
+
+    elementCleanups.set(el, cleanups);
+    scopeBindings.set(el, root);
   }
 
   function scan(startEl: Element) {
@@ -268,7 +255,9 @@ export function bindScope(
 
     while (node !== null) {
       const el = node as Element;
-      if (elementCleanups.has(el)) runCleanup(el);
+      if (elementCleanups.has(el)) {
+        runCleanup(el);
+      }
       node = walker.nextNode();
     }
   }
