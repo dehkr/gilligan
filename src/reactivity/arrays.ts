@@ -27,6 +27,7 @@ function runOnRaw(proxy: any[], method: string, args: any[], wrapResult = false)
   const raw = trackedRaw(proxy);
   const isReduce = method === 'reduce' || method === 'reduceRight';
   const isData = DATA_ARG_METHODS.has(method);
+  // `reduce` has no thisArg parameter; its second argument is the initial value
   const thisArg = isReduce ? proxy : (args[1] ?? proxy);
 
   const wrappedArgs = args.map((arg) => {
