@@ -75,14 +75,6 @@ export async function request<T = any>(
     app.config.baseUrl,
   );
 
-  // Enforce no body on GET/HEAD
-  let safeBody: BodyInit | null | undefined = finalBody;
-
-  if ((method === 'GET' || method === 'HEAD') && safeBody != null) {
-    __DEV__ && warn('Body is not allowed on GET or HEAD.');
-    safeBody = undefined;
-  }
-
   // Extract Rouse-specific execution options
   const {
     timeout = 0,
@@ -92,6 +84,14 @@ export async function request<T = any>(
     method: _method,
     ...fetchOptions
   } = restOptions;
+
+  // Enforce no body on GET/HEAD
+  let safeBody: BodyInit | null | undefined = finalBody;
+
+  if ((method === 'GET' || method === 'HEAD') && safeBody != null) {
+    __DEV__ && warn('Body is not allowed on GET or HEAD.', triggerEl);
+    safeBody = undefined;
+  }
 
   let mainSignal: AbortSignal | null = null;
   let ownerId: symbol | null = null;

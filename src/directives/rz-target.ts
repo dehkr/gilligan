@@ -69,20 +69,25 @@ function resolveRouteTargets(
           `rz-target: unknown swap method '${key}'. Using '${DEFAULT_SWAP_METHOD}'. Methods are case-sensitive: ${SWAP_METHODS.join(', ')}.`,
           hostEl,
         );
-      swaps.push({ method, targets: queryEls(appRoot, val) });
+      swaps.push({ method, targets: queryEls(appRoot, val, hostEl) });
     } else if (isSwapMethod(key)) {
       swaps.push({ targets: [hostEl], method: key });
     } else {
-      swaps.push({ targets: queryEls(appRoot, key), method: DEFAULT_SWAP_METHOD });
+      swaps.push({
+        targets: queryEls(appRoot, key, hostEl),
+        method: DEFAULT_SWAP_METHOD,
+      });
     }
   }
 
   return { swaps, stores };
 }
 
-function queryEls(appRoot: Element, selector: string): Element[] {
+function queryEls(appRoot: Element, selector: string, hostEl: Element): Element[] {
   const targets = queryTargets(appRoot, selector);
-  __DEV__ && targets.length === 0 && warn(`No targets found for '${selector}'.`);
+  __DEV__ &&
+    targets.length === 0 &&
+    warn(`rz-target: no targets found for '${selector}'.`, hostEl);
 
   return targets;
 }
