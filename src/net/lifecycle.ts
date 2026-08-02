@@ -1,7 +1,15 @@
 import { queryTargets } from '../core/attributes';
 import { warn } from '../core/diagnostics';
 import { dispatch } from '../dom/events';
-import type { RouseRequest, RouseResponse } from '../types';
+import type {
+  FetchConfigDetail,
+  FetchLifecycleDetail,
+  PushPullConfigDetail,
+  PushPullLifecycleDetail,
+  PushPullResultDetail,
+  RouseRequest,
+  RouseResponse,
+} from '../types';
 
 export const PREVENTED = Symbol('rz.prevented');
 
@@ -10,21 +18,38 @@ const REQUEST_CLASS = 'rouse-request';
 /** Per-element ref counts, so overlapping requests don't clear each other's class. */
 const inFlight = new WeakMap<Element, number>();
 
-export interface LifecycleHandle {
+interface LifecycleHandle {
   settle: (result: RouseResponse) => void;
 }
 
-export interface RequestLifecycleOptions {
+/** Fields every request-axis family shares, independent of its detail shapes. */
+interface LifecycleBase {
   el: Element;
   root: Element;
-  prefix: 'rz:fetch' | 'rz:push' | 'rz:pull';
   /** Resolved config, read after the `:config` gate so listeners can retarget `indicator`. */
   config: RouseRequest;
-  configDetail: Record<string, unknown>;
-  lifecycleDetail: Record<string, unknown>;
-  terminalDetail: (result: RouseResponse) => unknown;
   run: (handle: LifecycleHandle) => Promise<RouseResponse>;
 }
+
+/**
+ * Discriminated on `prefix` so each caller's detail objects are checked against
+ * the `LifecycleEventMap` entries for the family it dispatches.
+ */
+export type RequestLifecycleOptions = LifecycleBase &
+  (
+    | {
+        prefix: 'rz:fetch';
+        configDetail: FetchConfigDetail;
+        lifecycleDetail: FetchLifecycleDetail;
+        terminalDetail: (result: RouseResponse) => RouseResponse;
+      }
+    | {
+        prefix: 'rz:push' | 'rz:pull';
+        configDetail: PushPullConfigDetail;
+        lifecycleDetail: PushPullLifecycleDetail;
+        terminalDetail: (result: RouseResponse) => PushPullResultDetail;
+      }
+  );
 
 /**
  * Wraps a network operation in the shared request-axis lifecycle. Returns `PREVENTED`
@@ -105,18 +130,22 @@ function resolveIndicators(
   if (indicator === null) return [];
 
   const els = queryTargets(root, indicator);
-  __DEV__ && !els.length && warn(`No indicator elements match '${indicator}'.`);
+  __DEV__ && !els.length && warn(`No indicator elements match '${indicator}'.`, el);
   return els;
 }
 
+/** Adds the request class on each element's first in-flight request. */
 function mark(els: Element[]) {
   for (const el of els) {
     const n = (inFlight.get(el) ?? 0) + 1;
     inFlight.set(el, n);
-    if (n === 1) el.classList.add(REQUEST_CLASS);
+    if (n === 1) {
+      el.classList.add(REQUEST_CLASS);
+    }
   }
 }
 
+/** Removes the request class once an element's last in-flight request settles. */
 function unmark(els: Element[]) {
   for (const el of els) {
     const n = (inFlight.get(el) ?? 1) - 1;
