@@ -7,6 +7,12 @@ import { dirtyTrackers, getRaw, objectRootKeys, reactive } from './reactive';
 export const methodIntercepts: Record<string | symbol, AnyFn> = {};
 
 /**
+ * Methods that take stored values, not callbacks, in their argument list. A
+ * function passed to one of these is data to keep, not a callback to decorate.
+ */
+const DATA_ARG_METHODS = new Set(['concat', 'with', 'toSpliced']);
+
+/**
  * Unwraps a reactive array and runs the given method (like `find`, `forEach`,
  * or `map`) on the raw contents, handing any callback it's given reactive versions
  * of the item, `this`, and the array so code inside still tracks changes.
@@ -19,16 +25,20 @@ export const methodIntercepts: Record<string | symbol, AnyFn> = {};
  */
 function runOnRaw(proxy: any[], method: string, args: any[], wrapResult = false) {
   const raw = trackedRaw(proxy);
-  // For reduce methods, pass the accumulator through unproxied
   const isReduce = method === 'reduce' || method === 'reduceRight';
+  const isData = DATA_ARG_METHODS.has(method);
+  const thisArg = isReduce ? proxy : (args[1] ?? proxy);
 
   const wrappedArgs = args.map((arg) => {
-    if (typeof arg !== 'function') return arg;
+    if (isData || typeof arg !== 'function') return arg;
 
+    // For reduce methods, pass the accumulator through unproxied; it's the callback's
+    // own value, not an array element, so wrapping it would proxy an object the caller
+    // already owns.
     return isReduce
       ? (acc: any, item: any, index: number) =>
-          arg.call(proxy, acc, reactive(item), index, proxy)
-      : (item: any, index: number) => arg.call(proxy, reactive(item), index, proxy);
+          arg.call(thisArg, acc, reactive(item), index, proxy)
+      : (item: any, index: number) => arg.call(thisArg, reactive(item), index, proxy);
   });
 
   const result = raw[method](...wrappedArgs);
