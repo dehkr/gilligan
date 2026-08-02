@@ -310,8 +310,6 @@ export interface RenderMeta {
   item: unknown;
   /** Zero-based position of this instance within the render. */
   index: number;
-  /** Reconciliation key: the positional index, or the resolved `rz-key` field value when set. */
-  key: string | number;
 }
 
 /**

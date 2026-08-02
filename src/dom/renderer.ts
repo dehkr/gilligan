@@ -36,7 +36,6 @@ interface NormalizedValue {
 }
 
 interface InstanceRecord {
-  key: string | number;
   item: unknown;
   itemSig: ItemSignal;
   indexSig: IndexSignal;
@@ -54,14 +53,6 @@ interface RenderOptions {
 
 /** Placeholder item for render modes with no per-item data (boolean/number). */
 const NO_ITEM: Record<string, unknown> = {};
-
-/**
- * Wraps an item in a reactive proxy when it's an object, so bound directives
- * track its fields. Passes primitives through untouched.
- */
-function toItemProxy(item: unknown): unknown {
-  return reactive(item as object);
-}
 
 /**
  * Classifies the resolved render value and lays out the instances to render.
@@ -110,7 +101,7 @@ function keyFor(
   plan: ItemPlan,
   mode: RenderMode,
   keyPath: string | null,
-  onMissing: (index: number) => void,
+  onMissing?: VoidFn,
 ): string | number {
   if (mode === 'boolean' || mode === 'number' || !keyPath) {
     return plan.index;
@@ -118,11 +109,26 @@ function keyFor(
 
   const explicit = getNestedVal(plan.item, keyPath);
   if (explicit == null) {
-    onMissing(plan.index);
+    onMissing?.();
     return plan.index;
   }
 
   return explicit as string | number;
+}
+
+/**
+ * Positions an instance's root nodes immediately after `prev`, moving only
+ * what's out of place. Returns the new trailing node.
+ */
+function placeAfter(parent: ParentNode, roots: ChildNode[], prev: ChildNode): ChildNode {
+  let ref = prev;
+  for (const node of roots) {
+    if (ref.nextSibling !== node) {
+      parent.insertBefore(node, ref.nextSibling);
+    }
+    ref = node;
+  }
+  return ref;
 }
 
 /**
@@ -144,11 +150,11 @@ export function renderTemplate(
   let dupWarned = false;
 
   /**
-   * Creates one rendered instance. Clones the template contents, layers the item,
-   * index and key onto a render context, binds the cloned directives against it,
+   * Creates one rendered instance. Clones the template contents, layers the item
+   * and index onto a render context, binds the cloned directives against it,
    * and teleports the nodes to a target when the item requests one.
    */
-  function buildInstance(plan: ItemPlan, instanceKey: string | number): InstanceRecord {
+  function buildInstance(plan: ItemPlan): InstanceRecord {
     const frag = template.content.cloneNode(true) as DocumentFragment;
     const roots = Array.from(frag.childNodes);
     const elementRoots = roots.filter(
@@ -162,7 +168,7 @@ export function renderTemplate(
       walkBoundElements(root, (e) => collected.push(e));
     }
 
-    const itemSig: ItemSignal = signal(toItemProxy(plan.item));
+    const itemSig: ItemSignal = signal(reactive(plan.item as object));
     const indexSig: IndexSignal = signal(plan.index);
     const hasItem = plan.item !== NO_ITEM;
     const meta: RenderMeta = {
@@ -172,7 +178,6 @@ export function renderTemplate(
       get item() {
         return hasItem ? itemSig() : undefined;
       },
-      key: instanceKey,
     };
 
     const ctx = new Proxy(parentState, {
@@ -209,32 +214,28 @@ export function renderTemplate(
 
     // Per-item teleport. `renderTarget` accepts a selector string or
     // a direct Element reference.
-    let target: Element | null = null;
     const item = plan.item;
     const rt =
       item && typeof item === 'object'
         ? (getRaw(item) as Record<string, unknown>).renderTarget
         : undefined;
 
-    let dest: Element | null = null;
+    let target: Element | null = null;
     if (typeof rt === 'string' && rt) {
-      dest = app.root.querySelector(rt);
-      if (!dest) {
+      target = app.root.querySelector(rt);
+      if (!target) {
         __DEV__ && warn(`rz-render: render target '${rt}' not found.`);
       }
     } else if (rt instanceof Element) {
       if (app.root.contains(rt)) {
-        dest = rt;
+        target = rt;
       } else {
         __DEV__ &&
           warn(`rz-render: render target is outside the app root; ignoring.`, rt);
       }
     }
 
-    if (dest) {
-      dest.append(...roots);
-      target = dest;
-    }
+    target?.append(...roots);
 
     const teardown = () => {
       for (const fn of cleanups) {
@@ -249,7 +250,6 @@ export function renderTemplate(
     };
 
     return {
-      key: instanceKey,
       item: plan.item,
       itemSig,
       indexSig,
@@ -257,25 +257,6 @@ export function renderTemplate(
       target,
       teardown,
     };
-  }
-
-  /**
-   * Positions an instance's root nodes immediately after `prev`, moving only
-   * what's out of place. Returns the new trailing node.
-   */
-  function placeAfter(
-    parent: ParentNode,
-    roots: ChildNode[],
-    prev: ChildNode,
-  ): ChildNode {
-    let ref = prev;
-    for (const node of roots) {
-      if (ref.nextSibling !== node) {
-        parent.insertBefore(node, ref.nextSibling);
-      }
-      ref = node;
-    }
-    return ref;
   }
 
   function teardownAll() {
@@ -303,16 +284,16 @@ export function renderTemplate(
     let dups = 0;
     let firstDup: string | number | null = null;
 
-    const onMissing = () => missing++;
+    const onMissing = __DEV__ ? () => missing++ : undefined;
     const seen = new Set<string | number>();
 
     for (const plan of normalized.items) {
       const instanceKey = keyFor(plan, normalized.mode, keyPath, onMissing);
 
       if (seen.has(instanceKey)) {
-        dups++;
-        if (firstDup === null) {
-          firstDup = instanceKey;
+        if (__DEV__) {
+          dups++;
+          firstDup ??= instanceKey;
         }
         continue;
       }
@@ -324,13 +305,13 @@ export function renderTemplate(
         // the item so bound directives re-read without a rebuild.
         if (rec.item !== plan.item) {
           rec.item = plan.item;
-          rec.itemSig(toItemProxy(plan.item));
+          rec.itemSig(reactive(plan.item as object));
         }
         if (rec.indexSig() !== plan.index) {
           rec.indexSig(plan.index);
         }
       } else {
-        rec = buildInstance(plan, instanceKey);
+        rec = buildInstance(plan);
         records.set(instanceKey, rec);
       }
 
