@@ -17,7 +17,7 @@ import type { RouseApp } from './app';
 import { getDirectiveValue } from './attributes';
 import { type HttpMethod, type PatchAction, STORE_PREFIX } from './constants';
 import { fail, warn } from './diagnostics';
-import { parseDataSourcePath } from './parser';
+import { parseStoreRef } from './parser';
 import { getNestedVal, getPathRoot, setNestedVal } from './path';
 import { clone, deepEqual, patchState } from './state';
 
@@ -32,10 +32,6 @@ export interface StoreTarget {
   storeName: string;
   nestedPath: string;
 }
-
-export type RouseStore<T extends object = any> = T & {
-  readonly __status: StoreStatus;
-};
 
 export interface SyncConfig {
   url: string;
@@ -88,12 +84,15 @@ export function resolveTarget(
     if (!subject.startsWith(STORE_PREFIX)) {
       __DEV__ &&
         warn(
-          `rz-${slug}: target '${subject}' must be a store reference (e.g., '@store').`,
+          `rz-${slug}: target '${subject}' must be a store reference (e.g., '@cart').`,
         );
       return null;
     }
 
-    const { source: storeName, nestedPath } = parseDataSourcePath(subject);
+    const target = parseStoreRef(subject, slug);
+    if (!target) return null;
+
+    const { source: storeName, nestedPath } = target;
 
     if (!storeName) {
       __DEV__ && warn(`rz-${slug}: invalid store reference '${subject}'.`);
@@ -122,10 +121,11 @@ export function resolveTarget(
 export function resolveStoreUrl(ref: string, stores: StoreManager): string | null {
   if (!ref.startsWith(STORE_PREFIX)) return ref;
 
-  const { source: storeName, nestedPath } = parseDataSourcePath(ref);
-  const storeData = stores.get(storeName);
+  const target = parseStoreRef(ref);
+  if (!target) return null;
 
-  const value = getNestedVal(storeData, nestedPath);
+  const storeData = stores.get(target.source);
+  const value = getNestedVal(storeData, target.nestedPath);
 
   if (typeof value !== 'string' || !value.trim()) {
     __DEV__ && warn(`Invalid URL. '${ref}' does not resolve to a string.`);
@@ -150,15 +150,6 @@ export class StoreManager {
     this.app = app;
   }
 
-  private _createStatus(): StoreStatus {
-    return reactive({
-      loading: false,
-      error: null,
-      lastSync: 0,
-      dirty: {},
-    });
-  }
-
   private _setConfig(entry: StoreEntry, partial?: Partial<SyncConfig>) {
     entry.config = { url: '', ...entry.config, ...partial };
   }
@@ -169,15 +160,12 @@ export class StoreManager {
     programmaticConfig?: Partial<SyncConfig>,
     el?: Element,
   ): StoreEntry {
-    const status = this._createStatus();
-
-    Object.defineProperty(state, '__status', {
-      value: status,
-      enumerable: false,
-      configurable: true,
-      writable: false,
+    const status: StoreStatus = reactive({
+      loading: false,
+      error: null,
+      lastSync: 0,
+      dirty: {},
     });
-
     const proxyState = reactive(state);
     const entry: StoreEntry = {
       name: storeName,
@@ -189,9 +177,7 @@ export class StoreManager {
 
     trackDirty(proxyState, (rootKey: string) => {
       if (this._isPatching) return;
-      this._withPatchGuard(() => {
-        status.dirty[rootKey] = true;
-      });
+      status.dirty[rootKey] = true;
       this._scheduleMutate(entry);
     });
 
@@ -600,7 +586,7 @@ export class StoreManager {
     state: T,
     config?: Partial<SyncConfig>,
     el?: Element,
-  ): RouseStore<T> {
+  ): T {
     if (this._stores.has(storeName)) {
       fail(`A store named '${storeName}' already exists.`);
     }
@@ -619,7 +605,7 @@ export class StoreManager {
     storeName: string,
     state: object,
     config?: Partial<SyncConfig>,
-  ): RouseStore<T> {
+  ): T {
     const entry = this._stores.get(storeName);
     if (!entry) {
       fail(`Store '${storeName}' does not exist.`);
@@ -642,7 +628,7 @@ export class StoreManager {
   /**
    * Returns the reactive proxy for a store, or `undefined`.
    */
-  get<T extends object = any>(storeName: string): RouseStore<T> | undefined {
+  get<T extends object = any>(storeName: string): T | undefined {
     return this._stores.get(storeName)?.data;
   }
 

@@ -2,7 +2,7 @@ import type { AnyFn, BindableValue, DirectiveSlug, HandlerCtx, Scope } from '../
 import { KEY_BLOCKLIST, STORE_PREFIX } from './constants';
 import { err, warn } from './diagnostics';
 import { is } from './is';
-import { parseDataSourcePath } from './parser';
+import { parseDataSourcePath, parseStoreRef } from './parser';
 import { getNestedVal } from './path';
 import { renderCtxOf } from './render-context';
 import { resolveState } from './resolve';
@@ -40,15 +40,15 @@ export function resolveInjection(
 
   // Store data
   if (value.startsWith(STORE_PREFIX)) {
-    const { source: storeName, nestedPath } = parseDataSourcePath(value);
-    const storeData = storeManager.get(storeName);
+    const ref = parseStoreRef(value);
+    if (!ref) return undefined;
 
+    const storeData = storeManager.get(ref.source);
     if (storeData === undefined) {
-      __DEV__ && warn(`Store '@${storeName}' not found. Cannot resolve '${value}'.`);
+      __DEV__ && warn(`Store '@${ref.source}' not found. Cannot resolve '${value}'.`);
       return undefined;
     }
-
-    resolvedValue = nestedPath ? getNestedVal(storeData, nestedPath) : storeData;
+    resolvedValue = ref.nestedPath ? getNestedVal(storeData, ref.nestedPath) : storeData;
   }
 
   // DOM script ID

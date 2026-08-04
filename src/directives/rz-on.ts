@@ -3,7 +3,7 @@ import { directiveSelector } from '../core/attributes';
 import { STORE_PREFIX } from '../core/constants';
 import { warn } from '../core/diagnostics';
 import { invokeHandler, splitInjection } from '../core/injection';
-import { parseDataSourcePath, parseTriggers } from '../core/parser';
+import { parseStoreRef, parseTriggers } from '../core/parser';
 import { getNestedVal } from '../core/path';
 import { dispatchTrigger } from '../dom/events';
 import type { AnyFn, BoundCleanupFn, BoundDirective, Scope, VoidFn } from '../types';
@@ -31,7 +31,10 @@ function bind(
 
   // Global store (e.g., `@theme.toggleMode`)
   if (methodName.startsWith(STORE_PREFIX)) {
-    const { source: storeName, nestedPath } = parseDataSourcePath(methodName);
+    const ref = parseStoreRef(methodName, 'on');
+    if (!ref) return;
+
+    const { source: storeName, nestedPath } = ref;
     const storeData = app.stores.get(storeName);
 
     if (storeData === undefined) {

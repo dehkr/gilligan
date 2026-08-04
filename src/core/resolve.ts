@@ -26,13 +26,45 @@ export function resolveState<T = unknown>(
 
   // Global store
   if (path.startsWith(STORE_PREFIX)) {
-    const { source: storeName, nestedPath } = parseDataSourcePath(path);
-    const store = storeManager.get(storeName);
-    return nestedPath ? getNestedVal<T>(store, nestedPath) : (store as T | undefined);
+    const { source: storeName, namespace, nestedPath } = parseDataSourcePath(path);
+
+    const resolved = namespace
+      ? resolveNamespace(path, storeName, namespace, storeManager)
+      : storeManager.get(storeName);
+
+    return nestedPath
+      ? getNestedVal<T>(resolved, nestedPath)
+      : (resolved as T | undefined);
   }
 
   // Fallback to local scope state
   return getNestedVal<T>(scope, path);
+}
+
+/**
+ * Resolves the `::` namespace of a store reference. `status` is the only
+ * namespace defined; anything else warns and resolves to nothing. The status
+ * object is reactive, so nested reads track per field.
+ */
+function resolveNamespace(
+  path: string,
+  storeName: string,
+  namespace: string,
+  storeManager: StoreManager,
+) {
+  if (namespace !== 'status') {
+    __DEV__ &&
+      warn(`Unknown namespace in '${path}'. Store status is '@${storeName}::status'.`);
+    return undefined;
+  }
+
+  // `status()` is silent on a missing store, unlike the data branch's `get()`
+  const status = storeManager.status(storeName);
+  __DEV__ &&
+    !status &&
+    warn(`Store '@${storeName}' not found. Cannot resolve '${path}'.`);
+
+  return status;
 }
 
 /**
@@ -75,7 +107,16 @@ export function writeState(
 
   // Global store
   if (path.startsWith(STORE_PREFIX)) {
-    const { source: storeName, nestedPath } = parseDataSourcePath(path);
+    const { source: storeName, namespace, nestedPath } = parseDataSourcePath(path);
+
+    if (namespace) {
+      __DEV__ &&
+        warnWriteOnce(
+          path,
+          `rz-model: cannot write to '${path}'. The '${namespace}' namespace is read-only.`,
+        );
+      return;
+    }
 
     if (!nestedPath) {
       __DEV__ &&

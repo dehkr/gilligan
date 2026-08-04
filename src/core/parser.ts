@@ -1,4 +1,4 @@
-import type { TriggerDef, TriggerSubjectPair } from '../types';
+import type { DirectiveSlug, TriggerDef, TriggerSubjectPair } from '../types';
 import {
   type HttpMethod,
   isHttpMethod,
@@ -29,13 +29,11 @@ const isOpener = (char: string): char is BoundaryOpener => openers.has(char);
  * `rz-target` selector example here).
  *
  * @example
- * ```ts
  * parseDirectiveValue('beforeend: #item-list, #log > div.output');
  * // [
  * //   ['beforeend', '#item-list'],
  * //   ['#log > div.output', null],
  * // ]
- * ```
  */
 export function parseDirectiveValue(
   value: string | null | undefined,
@@ -116,7 +114,6 @@ function parseSegment(segment: string, pairs: ParsedDirectiveValue): void {
  * URL/target from the element.
  *
  * @example
- * ```ts
  * parseTriggerSubjectPairs('input.debounce change: /api/users');
  * // [
  * //   {
@@ -128,7 +125,6 @@ function parseSegment(segment: string, pairs: ParsedDirectiveValue): void {
  * //     subject: '/api/users',
  * //   },
  * // ]
- * ```
  */
 export function parseTriggerSubjectPairs(
   value: string | null | undefined,
@@ -150,14 +146,12 @@ export function parseTriggerSubjectPairs(
  * space-separated.
  *
  * @example
- * ```ts
  * parseTriggers('click.throttle.300ms mouseenter.once mouseleave');
  * // [
  * //   { event: 'click', modifiers: ['throttle', '300ms'] },
  * //   { event: 'mouseenter', modifiers: ['once'] },
  * //   { event: 'mouseleave', modifiers: [] },
  * // ]
- * ```
  */
 export function parseTriggers(value: string | null | undefined): TriggerDef[] {
   let raw = value?.trim();
@@ -190,11 +184,9 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
  * is resolved from the element).
  *
  * @example
- * ```ts
- * parseFetchSubject('POST /api/users'); // => { method: 'POST', url: '/api/users' }
- * parseFetchSubject('/api/users');      // => { url: '/api/users' }
- * parseFetchSubject('DELETE');          // => { method: 'DELETE' }
- * ```
+ * parseFetchSubject('POST /api/users'); // { method: 'POST', url: '/api/users' }
+ * parseFetchSubject('/api/users');      // { url: '/api/users' }
+ * parseFetchSubject('DELETE');          // { method: 'DELETE' }
  */
 export function parseFetchSubject(subject: string): {
   method?: HttpMethod;
@@ -223,11 +215,9 @@ export function parseFetchSubject(subject: string): {
  * Returns `null` when a token is neither an action nor a store reference.
  *
  * @example
- * ```ts
- * parseStoreSubject('merge \@cart'); // => { action: 'merge', target: '@cart' }
- * parseStoreSubject('@cart.items');  // => { target: '@cart.items' }
- * parseStoreSubject('replace');      // => { action: 'replace' }
- * ```
+ * parseStoreSubject('merge \@cart'); // { action: 'merge', target: '@cart' }
+ * parseStoreSubject('@cart.items');  // { target: '@cart.items' }
+ * parseStoreSubject('replace');      // { action: 'replace' }
  */
 export function parseStoreSubject(
   subject: string,
@@ -258,50 +248,84 @@ export function parseStoreSubject(
 }
 
 /**
- * Parses a prefixed data-source path into the source it names and the
- * nested dot-path into that source, if any. Shared by `@` store references
- * and `#` script-id references.
+ * Parses a prefixed data-source path into the source it names, the `::`
+ * namespace it addresses (if any), and the nested dot-path into whichever of
+ * the two. Shared by `@` store references and `#` script-id references.
  *
  * @example
- * ```ts
  * parseDataSourcePath('@cart.items.total');
- * // => { source: 'cart', nestedPath: 'items.total' }
+ * // { source: 'cart', namespace: null, nestedPath: 'items.total' }
  *
- * parseDataSourcePath('@cart');
- * // => { source: 'cart', nestedPath: '' }
+ * parseDataSourcePath('@cart::status.loading');
+ * // { source: 'cart', namespace: 'status', nestedPath: 'loading' }
  *
  * parseDataSourcePath('#config.theme');
- * // => { source: 'config', nestedPath: 'theme' }
- * ```
+ * // { source: 'config', namespace: null, nestedPath: 'theme' }
  */
 export function parseDataSourcePath(value: string): {
   source: string;
+  namespace: string | null;
   nestedPath: string;
 } {
   const path = value.slice(1);
+
+  // `parseSegment` splits a `key: value` pair only on a colon followed by
+  // whitespace, so `::` is safe as a namespace operator.
+  const nsIndex = path.indexOf('::');
+
+  if (nsIndex !== -1) {
+    const rest = path.slice(nsIndex + 2);
+    const dot = rest.indexOf('.');
+    return {
+      source: path.slice(0, nsIndex),
+      namespace: dot === -1 ? rest : rest.slice(0, dot),
+      nestedPath: dot === -1 ? '' : rest.slice(dot + 1),
+    };
+  }
+
   const dotIndex = path.indexOf('.');
 
   if (dotIndex === -1) {
-    return { source: path, nestedPath: '' };
+    return { source: path, namespace: null, nestedPath: '' };
   }
 
   return {
     source: path.slice(0, dotIndex),
+    namespace: null,
     nestedPath: path.slice(dotIndex + 1),
   };
+}
+
+/**
+ * Parses a store reference at a site where only store data is valid. Warns and
+ * returns `null` when the reference names a namespace (`@cart::status`).
+ */
+export function parseStoreRef(
+  ref: string,
+  slug?: DirectiveSlug,
+): { source: string; nestedPath: string } | null {
+  const { source, namespace, nestedPath } = parseDataSourcePath(ref);
+
+  if (namespace) {
+    __DEV__ &&
+      warn(
+        `${slug ? `rz-${slug}: ` : ''}'${ref}' references the '${namespace}' namespace. Use '@${source}' to reference store data.`,
+      );
+    return null;
+  }
+
+  return { source, nestedPath };
 }
 
 /**
  * Parses a CSS declaration string into `[property, value]` pairs.
  *
  * @example
- * ```ts
  * parseDeclarations('color: red; margin: 0 auto');
  * // [
  * //   ['color', 'red'],
  * //   ['margin', '0 auto'],
  * // ]
- * ```
  */
 export function parseDeclarations(decl: string): Array<[string, string]> {
   return splitOnSafeDelimiter(decl, ';')
