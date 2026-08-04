@@ -192,9 +192,7 @@ export class StoreManager {
 
   private _getStore(storeName: string) {
     const entry = this._stores.get(storeName);
-    if (!entry) {
-      __DEV__ && warn(`Store '${storeName}' not found.`);
-    }
+    __DEV__ && !entry && warn(`Store '${storeName}' not found.`);
     return entry;
   }
 

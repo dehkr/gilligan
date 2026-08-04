@@ -223,9 +223,7 @@ export function renderTemplate(
     let target: Element | null = null;
     if (typeof rt === 'string' && rt) {
       target = app.root.querySelector(rt);
-      if (!target) {
-        __DEV__ && warn(`rz-render: render target '${rt}' not found.`);
-      }
+      __DEV__ && !target && warn(`rz-render: render target '${rt}' not found.`);
     } else if (rt instanceof Element) {
       if (app.root.contains(rt)) {
         target = rt;

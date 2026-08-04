@@ -199,10 +199,11 @@ function routePayload(el: Element, result: RouseResponse, type: 'success' | 'err
 
   // Handle strings (HTML/Text)
   if (typeof data === 'string') {
-    const contentType = result.response?.headers.get('Content-Type') || '';
-
-    if (isJsonType(contentType)) {
-      __DEV__ && warn(`Content-Type is JSON but data is a string. Defaulting to HTML.`);
+    if (__DEV__) {
+      const contentType = result.response?.headers.get('Content-Type') || '';
+      if (isJsonType(contentType)) {
+        warn(`Content-Type is JSON but data is a string. Defaulting to HTML.`);
+      }
     }
 
     dispatch(el, `${prefix}:html`, result);
@@ -210,9 +211,9 @@ function routePayload(el: Element, result: RouseResponse, type: 'success' | 'err
   }
 
   // Ignore null/undefined (e.g., 204 No Content), but warn on unhandled complex types
-  if (data != null) {
-    __DEV__ && warn(`Unsupported payload: '${data?.constructor?.name || typeof data}'.`);
-  }
+  __DEV__ &&
+    data != null &&
+    warn(`Unsupported payload: '${data?.constructor?.name || typeof data}'.`);
 }
 
 /**
@@ -238,9 +239,10 @@ function applyUrlChange(pushUrl: string | null, replaceUrl: string | null): void
   const url = pushUrl ?? replaceUrl;
   if (url === null) return;
 
-  if (pushUrl && replaceUrl) {
-    __DEV__ && warn(`Both 'Rouse-Push-Url' and 'Rouse-Replace-Url' present. Using Push.`);
-  }
+  __DEV__ &&
+    pushUrl &&
+    replaceUrl &&
+    warn(`Both 'Rouse-Push-Url' and 'Rouse-Replace-Url' present. Using Push.`);
 
   if (!isSameOrigin(url)) {
     const headerName = pushUrl ? 'Rouse-Push-Url' : 'Rouse-Replace-Url';

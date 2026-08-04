@@ -130,12 +130,11 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
     // If the URL is missing, it could mean there isn't one configured,
     // or that it's in the wrong position (missing trigger).
     if (!url && !deferUrl) {
-      if (!warnedMissingUrl) {
-        __DEV__ &&
-          warn(
-            `rz-fetch: no URL found. Configure it using rz-fetch (with at least one leading trigger), rz-url, or a native attribute (e.g. 'href', 'action', or 'formaction').`,
-            el,
-          );
+      if (__DEV__ && !warnedMissingUrl) {
+        warn(
+          `rz-fetch: no URL found. Configure it using rz-fetch (with at least one leading trigger), rz-url, or a native attribute (e.g. 'href', 'action', or 'formaction').`,
+          el,
+        );
         warnedMissingUrl = true;
       }
       continue;

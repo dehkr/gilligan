@@ -59,9 +59,10 @@ export function parseDirectiveValue(
     return false;
   });
 
-  if (!scanResult.mismatched && (scanResult.depth > 0 || scanResult.quote)) {
-    __DEV__ && warn(`Malformed directive value: '${value}'.`);
-  }
+  __DEV__ &&
+    !scanResult.mismatched &&
+    (scanResult.depth > 0 || scanResult.quote) &&
+    warn(`Malformed directive value: '${value}'.`);
 
   // Final segment
   parseSegment(cleanedValue.slice(start), parsed);

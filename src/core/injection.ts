@@ -187,9 +187,9 @@ export function resolveBoundValue(
     ) as BindableValue;
   }
 
-  if (rawPayload !== undefined) {
-    __DEV__ && warn(`'${key}' is not callable; ignoring payload '${rawPayload}'.`);
-  }
+  __DEV__ &&
+    rawPayload !== undefined &&
+    warn(`'${key}' is not callable; ignoring payload '${rawPayload}'.`);
 
   return state as BindableValue;
 }
