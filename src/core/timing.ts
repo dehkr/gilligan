@@ -34,7 +34,7 @@ const DEFAULT_DEBOUNCE_MS = 300;
 const DEFAULT_THROTTLE_MS = 150;
 
 // Time-value patterns. The suffixed form requires an explicit unit so a bare
-// number (e.g. 'keydown.debounce.5') isn't mistaken for a wait. The optional
+// number (e.g. 'keydown|debounce.5') isn't mistaken for a wait. The optional
 // form accepts plain numbers (e.g. `timeout: 5000`).
 const SUFFIXED_TIME_REGEX = /^(\d*\.?\d+)(ms|s|m)$/;
 const TIME_REGEX = /^(\d*\.?\d+)(ms|s|m)?$/;
@@ -213,14 +213,12 @@ export function isTimeModifier(val: unknown): boolean {
  * Defaults to milliseconds if no suffix is provided.
  *
  * @example
- * ```ts
  * parseTime(500);     // 500
  * parseTime('500');   // 500
  * parseTime('500ms'); // 500
  * parseTime('5s');    // 5000
  * parseTime('1.5s');  // 1500
  * parseTime('0.5m');  // 30000
- * ```
  */
 export function parseTime(val?: string | number): number {
   // Treat empty or falsy values as valid zero states

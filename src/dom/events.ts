@@ -97,7 +97,7 @@ function attachListener<D = any>(
  * DOM lookup (and work on non-element targets such as `window`).
  *
  * @example
- * ctx.on(el, 'click.debounce.500ms', handleClick);
+ * ctx.on(el, 'click|debounce.500ms', handleClick);
  * app.on('page-visible online', sync);
  */
 export function on<N extends string>(
@@ -300,7 +300,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   'page-visible': ({ action }) => attachVisibilityChange('visible', action),
   'page-hidden': ({ action }) => attachVisibilityChange('hidden', action),
 
-  /** Listens to a media query. Supports `.once`. */
+  /** Listens to a media query. Supports `once`. */
   media: ({ el, modifiers, action }) => {
     const query = modifiers.find((m) => m.startsWith('(') && m.endsWith(')'));
     const isOnce = modifiers.includes('once');
@@ -328,7 +328,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     return () => mql.removeEventListener('change', changeHandler);
   },
 
-  /** Element intersection with the viewport, supports `.once`. */
+  /** Element intersection with the viewport, supports `once`. */
   intersect: ({ el, modifiers, action }) => {
     const isOnce = modifiers.includes('once');
 
@@ -346,7 +346,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   },
 
   /**
-   * First pointer or focus interaction with the element. Supports `.once`.
+   * First pointer or focus interaction with the element. Supports `once`.
    * `pointerover` covers mouse, touch, and pen; `focusin` covers keyboard.
    */
   interact: ({ el, modifiers, action }) => {

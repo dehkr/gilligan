@@ -118,7 +118,7 @@ export class RouseApp {
    *
    * @example
    * app.on('page-visible', refetch);
-   * app.on('click.debounce.300ms', onClick);
+   * app.on('click|debounce.300ms', onClick);
    * app.on(window, 'online offline', sync);
    */
   public on: BoundOn;

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking:** Resolve `rousejs` to the minified build by default instead of the development build, which was shipping diagnostics to production. Use `rousejs/dev` for diagnostics in tools that don't set the `development` condition.
+- **Breaking:** Separate event modifiers from the event with `|` instead of `.` (e.g. `click|debounce.300ms.once`, `rz:store:sync:before|debounce.300ms`). Modifiers remain dot-separated.
 - **Breaking:** Rename the in-flight class from `rz-loading` to `rouse-request`.
 - **Breaking:** Rename `rz:store:sync:conflict` to `rz:store:sync:skipped` and drop its `reason` field.
 - **Breaking:** Reference store status via the `::` namespace operator. `@cart::status.loading` replaces `@cart.__status.loading`, and `__status` is no longer a property of the store data proxy.

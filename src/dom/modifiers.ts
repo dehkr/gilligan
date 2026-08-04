@@ -62,8 +62,8 @@ export function resolveListenerTarget(el: Element, modifiers: string[]): EventTa
 
 /**
  * Applies event modifiers and determines if the handler should execute.
- * By default, modifiers are matched exactly (e.g., `.enter` fires only on bare Enter,
- * not Shift+Enter). Use `.loose` to allow extra modifiers.
+ * By default, modifiers are matched exactly (e.g., `enter` fires only on bare Enter,
+ * not Shift+Enter). Use `loose` to allow extra modifiers.
  *
  * @returns `true` if the handler should execute, `false` otherwise
  */

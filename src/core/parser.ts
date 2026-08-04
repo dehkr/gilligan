@@ -114,7 +114,7 @@ function parseSegment(segment: string, pairs: ParsedDirectiveValue): void {
  * URL/target from the element.
  *
  * @example
- * parseTriggerSubjectPairs('input.debounce change: /api/users');
+ * parseTriggerSubjectPairs('input|debounce change: /api/users');
  * // [
  * //   {
  * //     trigger: { event: 'input', modifiers: ['debounce'] },
@@ -142,11 +142,12 @@ export function parseTriggerSubjectPairs(
 
 /**
  * Parses a raw trigger string into trigger definitions, splitting on whitespace
- * outside quotes and boundaries. Commas are rejected; multi-trigger values are
+ * outside quotes and boundaries. A single `|` separates the event from its
+ * dot-separated modifiers. Commas are rejected; multi-trigger values are
  * space-separated.
  *
  * @example
- * parseTriggers('click.throttle.300ms mouseenter.once mouseleave');
+ * parseTriggers('click|throttle.300ms mouseenter|once mouseleave');
  * // [
  * //   { event: 'click', modifiers: ['throttle', '300ms'] },
  * //   { event: 'mouseenter', modifiers: ['once'] },
@@ -166,12 +167,22 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
   const triggers = splitOnSafeDelimiter(raw, (char) => /\s/.test(char));
   const parsed: TriggerDef[] = [];
 
-  // Split the triggers into their respective event and dot-separated modifiers,
-  // ignoring dots inside quotes or boundaries.
+  // A single '|' separates the event from its modifiers, which are then
+  // dot-separated. Both splits ignore delimiters inside quotes or boundaries.
   for (const trigger of triggers) {
-    const parts = splitOnSafeDelimiter(trigger, '.');
-    const [event = '', ...modifiers] = parts;
+    const [event = '', modifierGroup, ...extraGroups] = splitOnSafeDelimiter(
+      trigger,
+      '|',
+    );
     if (!event) continue;
+
+    if (extraGroups.length > 0) {
+      __DEV__ &&
+        warn(`Separate modifiers from the event with a single '|': '${trigger}'.`);
+      continue;
+    }
+
+    const modifiers = modifierGroup ? splitOnSafeDelimiter(modifierGroup, '.') : [];
     parsed.push({ event, modifiers });
   }
 
