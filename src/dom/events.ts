@@ -45,15 +45,12 @@ export function dispatch(
 }
 
 /**
- * Attaches a DOM event listener with modifier handling:
+ * Attaches a DOM event listener, applying the parsed modifiers: listener options,
+ * event-argument filters, and target resolution. Execution timing is not applied here;
+ * `dispatchTrigger`, its only caller, wraps the callback before calling in.
  *
- * - Listener options (`capture`, `passive`) via `getListenerOptions`
- * - Event-arg modifiers (`prevent`, `stop`, `self`, key filters) via `applyModifiers`
- * - Listener target resolution (`window`, `document`, `root`, `outside`) via `resolveListenerTarget`
- * - `once` enforced manually after the filters pass, so a filtered-out event doesn't consume the listener
- *
- * Does not apply execution timing (debounce/throttle). Most callers should use the
- * public `on()` facade or `dispatchTrigger` instead. This is the primitive both build on.
+ * `once` is enforced manually rather than natively so a modifier-filtered event doesn't
+ * consume the listener. Trigger sources get their own via `attachTriggerSource`.
  *
  * @returns Cleanup function that removes the listener.
  */
@@ -132,16 +129,24 @@ export function on(
       app,
       action: callback as ActionFn,
     });
-    if (cleanup) cleanups.push(cleanup);
+    if (cleanup) {
+      cleanups.push(cleanup);
+    }
   }
 
   if (abortSignal) {
-    abortSignal.addEventListener('abort', () => cleanups.forEach((fn) => fn()), {
-      once: true,
-    });
+    abortSignal.addEventListener(
+      'abort',
+      () => {
+        for (const fn of cleanups) fn();
+      },
+      { once: true },
+    );
   }
 
-  return () => cleanups.forEach((fn) => fn());
+  return () => {
+    for (const fn of cleanups) fn();
+  };
 }
 
 /**
@@ -173,7 +178,7 @@ export function dispatchTrigger(
 
   const handler = triggerSources[trigger.event];
   if (handler) {
-    const cleanup = handler({
+    const cleanup = attachTriggerSource(handler, {
       ...base,
       modifiers: trigger.modifiers,
       action: timed,
@@ -195,6 +200,37 @@ export function dispatchTrigger(
   );
 
   return wrapCleanup(cleanup);
+}
+
+/**
+ * Runs a trigger source with `once` enforced centrally, so no source hand-rolls it.
+ * Teardown runs before the action, matching `attachListener`, so a throwing action
+ * still detaches.
+ *
+ * A source can fire while it's still attaching (an already-matching `media` query,
+ * an already-loaded page) before its teardown exists, so it checks post-attach.
+ */
+function attachTriggerSource(
+  handler: TriggerSourceHandler,
+  ctx: TriggerContext,
+): VoidFn | null {
+  if (!ctx.modifiers.includes('once')) return handler(ctx);
+
+  const action = ctx.action;
+  let cleanup: VoidFn | null = null;
+  let fired = false;
+
+  ctx.action = (e?: Event) => {
+    if (fired) return;
+    fired = true;
+    cleanup?.();
+    action(e);
+  };
+
+  cleanup = handler(ctx);
+  if (fired) cleanup?.();
+
+  return cleanup;
 }
 
 /**
@@ -229,7 +265,7 @@ export function attachWakeStrategies(
 
     if (pending === 0) {
       isAwake = true;
-      cleanups.forEach((cleanup) => cleanup());
+      for (const cleanup of cleanups) cleanup();
       onWake();
     }
   };
@@ -244,13 +280,15 @@ export function attachWakeStrategies(
     };
 
     const cleanup = dispatchTrigger(trigger, { el, action, app });
-    if (cleanup) cleanups.push(cleanup);
+    if (cleanup) {
+      cleanups.push(cleanup);
+    }
   }
 
   // Return a master cleanup in case the element is destroyed before waking
   return () => {
     if (!isAwake) {
-      cleanups.forEach((cleanup) => cleanup());
+      for (const cleanup of cleanups) cleanup();
     }
   };
 }
@@ -305,10 +343,9 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   /** Repeating timer (`setInterval`). */
   interval: (ctx) => attachTimingSource('interval', ctx),
 
-  /** Listens to a media query. Supports `once`. */
+  /** Listens to a media query. */
   media: ({ el, modifiers, action }) => {
     const query = modifiers.find((m) => m.startsWith('(') && m.endsWith(')'));
-    const isOnce = modifiers.includes('once');
 
     if (!query) {
       __DEV__ && warn(`The 'media' event requires a query modifier in parentheses.`, el);
@@ -316,32 +353,22 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     }
 
     const mql = window.matchMedia(query);
-    if (mql.matches) {
-      action();
-      if (isOnce) return null;
-    }
+    if (mql.matches) action();
 
     const changeHandler = (e: MediaQueryListEvent) => {
-      if (!e.matches) return;
-      action();
-      if (isOnce) {
-        mql.removeEventListener('change', changeHandler);
-      }
+      if (e.matches) action();
     };
 
     mql.addEventListener('change', changeHandler);
     return () => mql.removeEventListener('change', changeHandler);
   },
 
-  /** Element intersection with the viewport, supports `once`. */
-  intersect: ({ el, modifiers, action }) => {
-    const isOnce = modifiers.includes('once');
-
+  /** Element intersection with the viewport. */
+  intersect: ({ el, action }) => {
     const observer = new IntersectionObserver((entries) => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
         action();
-        if (isOnce) observer.disconnect();
         break;
       }
     });
@@ -351,25 +378,21 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   },
 
   /**
-   * First pointer or focus interaction with the element. Supports `once`.
-   * `pointerover` covers mouse, touch, and pen; `focusin` covers keyboard.
+   * Fires on pointer or focus interaction with the element. `pointerover` covers
+   * mouse, touch, and pen. `focusin` covers keyboard.
    */
-  interact: ({ el, modifiers, action }) => {
+  interact: ({ el, action }) => {
     const events = ['pointerover', 'focusin'];
-    const isOnce = modifiers.includes('once');
 
-    const handler = (e: Event) => {
-      // Detach before dispatching, so a throwing action still tears down
-      if (isOnce) cleanup();
-      action(e);
+    for (const evt of events) {
+      el.addEventListener(evt, action, { passive: true });
+    }
+
+    return () => {
+      for (const evt of events) {
+        el.removeEventListener(evt, action);
+      }
     };
-
-    const cleanup = () => {
-      events.forEach((evt) => el.removeEventListener(evt, handler));
-    };
-    events.forEach((evt) => el.addEventListener(evt, handler, { passive: true }));
-
-    return cleanup;
   },
 
   /** window.requestIdleCallback (one-time execution). */
