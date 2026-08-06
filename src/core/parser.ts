@@ -168,22 +168,27 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
   const triggers = splitOnSafeDelimiter(raw, (char) => /\s/.test(char));
   const parsed: TriggerDef[] = [];
 
-  // A single '|' separates the event from its modifiers, which are then
-  // dot-separated. Both splits ignore delimiters inside quotes or boundaries.
+  // A single '|' separates the event from its modifiers, which are then dot-separated.
+  // Both splits ignore delimiters inside quotes or boundaries.
   for (const trigger of triggers) {
+    if (!trigger) continue;
+
     const [event = '', modifierGroup, ...extraGroups] = splitOnSafeDelimiter(
       trigger,
       '|',
     );
-    if (!event) continue;
 
-    if (extraGroups.length > 0) {
+    if (!event || modifierGroup === '' || extraGroups.length > 0) {
       __DEV__ &&
-        warn(`Separate modifiers from the event with a single '|': '${trigger}'.`);
+        warn(
+          `Malformed trigger: '${trigger}'. Use a single '|' after the event, followed by dot-separated modifiers.`,
+        );
       continue;
     }
 
-    const modifiers = modifierGroup ? splitOnSafeDelimiter(modifierGroup, '.') : [];
+    const modifiers = modifierGroup
+      ? splitOnSafeDelimiter(modifierGroup, '.').filter(Boolean)
+      : [];
     parsed.push({ event, modifiers });
   }
 
@@ -350,10 +355,11 @@ export function parseDeclarations(decl: string): Array<[string, string]> {
 
 /**
  * Splits `text` on every unescaped occurrence of `delimiter` at depth 0,
- * returning the resulting segments. Empty segments are excluded.
+ * returning the resulting segments. Empty segments are preserved, so callers
+ * can distinguish a missing part from an absent one; filter where they're noise.
  *
- * Centralises the start-pointer / slice / remainder pattern that would
- * otherwise be repeated across every parsing function.
+ * Centralises the start-pointer / slice / remainder pattern that would otherwise
+ * be repeated across every parsing function.
  */
 function splitOnSafeDelimiter(
   text: string,
@@ -374,7 +380,7 @@ function splitOnSafeDelimiter(
   });
 
   parts.push(text.slice(start));
-  return parts.filter((p) => p.length > 0);
+  return parts;
 }
 
 /**
