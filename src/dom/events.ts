@@ -260,15 +260,6 @@ export function attachWakeStrategies(
  * Store-specific sources (`edit`) stay inline in `rz-push`.
  */
 export const triggerSources: Record<string, TriggerSourceHandler> = {
-  /** Fires when all assets (images, etc.) are fully loaded. */
-  load: ({ action }) => {
-    if (document.readyState === 'complete') {
-      action();
-      return null;
-    }
-    return attachWindowEvent('load', action);
-  },
-
   /** Fires when the RouseApp instance is fully initialized. */
   ready: ({ el, app, action }) => {
     const inst = app || getApp(el);
@@ -281,24 +272,38 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     return () => inst.root.removeEventListener('rz:app:ready', action);
   },
 
+  /** Opts the directive out of all auto-binding (explicit no-op). */
+  none: () => null,
+
+  /**
+   * Fires when all assets (images, etc.) are fully loaded or immediately if the
+   * page has already loaded.
+   */
+  'page-loaded': ({ action }) => {
+    if (document.readyState === 'complete') {
+      action();
+      return null;
+    }
+    return attachWindowEvent('load', action);
+  },
+
+  /** Fires when the document becomes visible (e.g., tab switch, maximize). */
+  'page-visible': ({ action }) => attachVisibilityChange('visible', action),
+
+  /** Fires when the document becomes hidden (e.g., tab switch, minimize). */
+  'page-hidden': ({ action }) => attachVisibilityChange('hidden', action),
+
+  /** Fires when the browser gains access to the network. */
+  'network-online': ({ action }) => attachWindowEvent('online', action),
+
+  /** Fires when the browser loses access to the network. */
+  'network-offline': ({ action }) => attachWindowEvent('offline', action),
+
   /** Fires once after a specified period (`setTimeout`). */
   timeout: (ctx) => attachTimingSource('timeout', ctx),
 
   /** Repeating timer (`setInterval`). */
   interval: (ctx) => attachTimingSource('interval', ctx),
-
-  /** Explicit no-op (opts the directive out of all auto-binding). */
-  none: () => null,
-
-  /** Fires when the browser gains access to the network. */
-  online: ({ action }) => attachWindowEvent('online', action),
-
-  /** Fires when the browser loses access to the network. */
-  offline: ({ action }) => attachWindowEvent('offline', action),
-
-  /** Document visibility (tab switch / minimize). */
-  'page-visible': ({ action }) => attachVisibilityChange('visible', action),
-  'page-hidden': ({ action }) => attachVisibilityChange('hidden', action),
 
   /** Listens to a media query. Supports `once`. */
   media: ({ el, modifiers, action }) => {

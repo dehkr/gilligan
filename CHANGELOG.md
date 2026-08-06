@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Rename the in-flight class from `rz-loading` to `rouse-request`.
 - **Breaking:** Rename `rz:store:sync:conflict` to `rz:store:sync:skipped` and drop its `reason` field.
 - **Breaking:** Reference store status via the `::` namespace operator. `@cart::status.loading` replaces `@cart.__status.loading`, and `__status` is no longer a property of the store data proxy.
+- **Breaking:** Rename trigger sources that shadowed native DOM events:
+  - `load` -> `page-loaded`
+  - `online` -> `network-online`
+  - `offline` -> `network-offline`
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 
 ### Removed
