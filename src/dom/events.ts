@@ -3,7 +3,14 @@ import { warn } from '../core/diagnostics';
 import { isNativeNavigation } from '../core/is';
 import { parseTriggers } from '../core/parser';
 import { applyTiming, isTimeModifier, parseTime } from '../core/timing';
-import type { ActionFn, LifecycleEventMap, TriggerDef, VoidFn } from '../types';
+import type {
+  ActionFn,
+  EventCallback,
+  LifecycleEventMap,
+  TriggerDef,
+  TriggerEvent,
+  VoidFn,
+} from '../types';
 import { applyModifiers, getListenerOptions, resolveListenerTarget } from './modifiers';
 
 export interface TriggerContext {
@@ -102,14 +109,12 @@ function attachListener<D = any>(
  *
  * @example
  * ctx.on(el, 'click|debounce.500ms', handleClick);
- * app.on('page-visible online', sync);
+ * app.on('page-visible network-online', sync);
  */
 export function on<N extends string>(
   target: EventTarget,
   events: N,
-  callback: (
-    ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
-  ) => void,
+  callback: EventCallback<TriggerEvent<N>>,
   abortSignal?: AbortSignal,
   app?: RouseApp,
 ): VoidFn;
@@ -117,7 +122,7 @@ export function on<N extends string>(
 export function on(
   target: EventTarget,
   events: string,
-  callback: (ev: CustomEvent<any>) => void,
+  callback: EventCallback<any>,
   abortSignal?: AbortSignal,
   app?: RouseApp,
 ): VoidFn {
@@ -130,11 +135,18 @@ export function on(
 
   const cleanups: Array<VoidFn> = [];
 
+  // Mirror addEventListener: an object listener dispatches through `handleEvent`,
+  // resolved per call so it can be swapped after binding.
+  const action: ActionFn =
+    typeof callback === 'function'
+      ? (callback as ActionFn)
+      : (e?: Event) => callback.handleEvent(e as Event);
+
   for (const trigger of triggers) {
     const cleanup = dispatchTrigger(trigger, {
       el: target as Element,
       app,
-      action: callback as ActionFn,
+      action,
       suppressNavigation: false,
     });
     if (cleanup) {

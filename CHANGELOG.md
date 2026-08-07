@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `offline` -> `network-offline`
 - **Breaking:** Stop suppressing native anchor and form navigation for listeners attached programmatically with `app.on`/`ctx.on`.
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
+- Accept an object with a `handleEvent` method as the listener for `app.on`/`ctx.on`, matching `addEventListener`.
 
 ### Removed
 

@@ -344,6 +344,34 @@ export type TriggerSubjectPair = {
   subject: string | null;
 };
 
+/** Strips trigger modifiers: `click|debounce.300ms` -> `click`. */
+type TriggerName<S extends string> = S extends `${infer E}|${string}` ? E : S;
+
+/** Splits a whitespace-separated trigger string into a union of bare event names. */
+type TriggerNames<S extends string> = string extends S
+  ? string
+  : S extends `${infer A} ${infer B}`
+    ? TriggerName<A> | TriggerNames<B>
+    : TriggerName<S>;
+
+/**
+ * The event type a trigger string yields: a lifecycle event's typed detail, a native
+ * event's own type, or `CustomEvent<any>` for names the DOM doesn't define.
+ */
+export type TriggerEvent<S extends string> =
+  TriggerNames<S> extends infer E extends string
+    ? E extends keyof LifecycleEventMap
+      ? CustomEvent<LifecycleEventMap[E]>
+      : E extends keyof HTMLElementEventMap
+        ? HTMLElementEventMap[E]
+        : E extends keyof WindowEventMap
+          ? WindowEventMap[E]
+          : CustomEvent<any>
+    : never;
+
+/** A listener callback, or an object with `handleEvent`, as `addEventListener` accepts. */
+export type EventCallback<E> = ((ev: E) => void) | { handleEvent(ev: E): void };
+
 /** A stateless directive used to parse DOM attributes into a typed configuration object. */
 export interface ConfigDirective<T> {
   /** Parse the element's attributes into the typed config `T`. Pure. No lifecycle, read on demand. */
@@ -357,9 +385,9 @@ export interface BoundDirective {
   /** CSS selector string for elements with this directive. */
   selector: string;
   /**
-   * Attach the binding for one pre-split `[key: value]` segment: `key` is the trigger/token,
-   * `value` the subject. `scope` is the owning `Scope`, or `EMPTY_SCOPE` when globally mounted.
-   * Returns a cleanup, or `undefined` if nothing was bound.
+   * Attach the binding for one pre-split `[key: value]` segment: `key` is the
+   * trigger/token, `value` the subject. `scope` is the owning `Scope`, or `EMPTY_SCOPE`
+   * when globally mounted. Returns a cleanup, or `undefined` if nothing was bound.
    */
   bind: (
     el: Element,
@@ -523,17 +551,13 @@ export type ScopeSetup<
 export type BoundOn = {
   <N extends string>(
     events: N,
-    callback: (
-      ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
-    ) => void,
+    callback: EventCallback<TriggerEvent<N>>,
     customSignal?: AbortSignal,
   ): VoidFn;
   <N extends string>(
     target: EventTarget,
     events: N,
-    callback: (
-      ev: CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>,
-    ) => void,
+    callback: EventCallback<TriggerEvent<N>>,
     customSignal?: AbortSignal,
   ): VoidFn;
 };
