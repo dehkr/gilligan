@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `load` -> `page-loaded`
   - `online` -> `network-online`
   - `offline` -> `network-offline`
+- **Breaking:** Stop suppressing native anchor and form navigation for listeners attached programmatically with `app.on`/`ctx.on`.
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 
 ### Removed
@@ -31,8 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Remove the automatic `aria-busy="true"` on the triggering element. Apply it from an `rz:fetch:start` / `:end` listener pair instead.
 - **Breaking:** Remove `escape` key modifier token. Use `esc`.
 - **Breaking:** Remove `readOnly` and `nonReactive`.
-- **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible online: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
+- **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
 - **Breaking:** Remove the HTTP-method aliases on `app.fetch` and `ctx.fetch`. Pass the method in options: `fetch(url, { method: 'POST' })`.
+
+### Fixed
+
+- Fix the `once` modifier being ignored by trigger sources that don't self-terminate: `interval`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.
 
 ## [0.11.0] - 2026-07-27
 

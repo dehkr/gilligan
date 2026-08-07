@@ -11,6 +11,13 @@ export interface TriggerContext {
   app?: RouseApp;
   modifiers: string[];
   action: ActionFn;
+  /**
+   * Suppress native navigation (anchor clicks, form submits) before the action runs.
+   * Defaults to `true`: a directive on an anchor or form is taking the interaction
+   * over. `app.on`/`ctx.on` pass `false`: a programmatic listener observes an element,
+   * it doesn't take control of it. Those callers opt in with the `prevent` modifier.
+   */
+  suppressNavigation?: boolean;
 }
 
 export type TriggerSourceHandler = (ctx: TriggerContext) => VoidFn | null;
@@ -128,6 +135,7 @@ export function on(
       el: target as Element,
       app,
       action: callback as ActionFn,
+      suppressNavigation: false,
     });
     if (cleanup) {
       cleanups.push(cleanup);
@@ -150,16 +158,15 @@ export function on(
 }
 
 /**
- * Routes a single trigger to its handler. Trigger sources (`interval`,
- * `ready`, `online`, etc.) go through the `triggerSources` registry.
- * Standard DOM events fall through to `attachListener`.
+ * Routes a single trigger to its handler. Trigger sources go through the
+ * `triggerSources` registry. Standard DOM events fall through to `attachListener`.
  *
- * Timed execution (debounce/throttle) is applied here once, before
- * dispatch, so trigger sources and DOM events both receive timed actions.
- * The returned cleanup also cancels any pending timed calls.
+ * Timed execution (debounce/throttle) is applied here once, before dispatch, so
+ * trigger sources and DOM events both receive timed actions. The returned cleanup
+ * also cancels any pending timed calls.
  *
- * Native navigation is suppressed for form submits and anchor clicks
- * via `isNativeNavigation`.
+ * Native navigation is suppressed for form submits and anchor clicks unless the
+ * caller opts out with `suppressNavigation: false`, which `app.on`/`ctx.on` do.
  *
  * @returns Cleanup function, or `null` if the trigger has no teardown.
  */
@@ -168,6 +175,7 @@ export function dispatchTrigger(
   base: Omit<TriggerContext, 'modifiers'>,
 ): VoidFn | null {
   const timed = applyTiming(base.action, trigger.modifiers);
+  const suppressNavigation = base.suppressNavigation ?? true;
 
   const wrapCleanup = (cleanup: VoidFn | null): VoidFn => {
     return () => {
@@ -191,7 +199,7 @@ export function dispatchTrigger(
     base.el,
     trigger.event,
     (e: Event) => {
-      if (isNativeNavigation(base.el, e)) {
+      if (suppressNavigation && isNativeNavigation(base.el, e)) {
         e.preventDefault();
       }
       timed(e);
