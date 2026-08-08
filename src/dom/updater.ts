@@ -1,5 +1,4 @@
 import { warn } from '../core/diagnostics';
-import { is } from '../core/is';
 import { parseDeclarations } from '../core/parser';
 import type { BindableValue } from '../types';
 
@@ -32,7 +31,7 @@ export function updateHtml(el: Element, value: BindableValue) {
  * Handles setting value of modelable elements.
  */
 export function setModelableValue(el: Element, value: BindableValue) {
-  if (!is(el, 'HTML')) return;
+  if (!(el instanceof HTMLElement)) return;
 
   // Text of elements with `contenteditable` attribute are modelable
   if (el.isContentEditable) {
@@ -43,42 +42,36 @@ export function setModelableValue(el: Element, value: BindableValue) {
     return;
   }
 
-  // Handle input/select elements
-  const input = el as HTMLInputElement | HTMLSelectElement;
-
-  // Checkbox
-  if (input.type === 'checkbox') {
-    input.checked = !!value;
-  }
-
-  // Radio buttons
-  else if (input.type === 'radio') {
-    input.checked = input.value === String(value);
-  }
-
-  // Select (single or multiple)
-  else if (is(input, 'Select')) {
-    if (input.multiple && Array.isArray(value)) {
-      const vals = new Set(value.map(String));
-      Array.from(input.options).forEach((opt) => {
-        opt.selected = vals.has(opt.value);
-      });
+  if (el instanceof HTMLInputElement) {
+    if (el.type === 'checkbox') {
+      el.checked = !!value;
+    } else if (el.type === 'radio') {
+      el.checked = el.value === String(value);
     } else {
-      input.value = value == null ? '' : String(value);
+      setStringValue(el, value);
     }
+    return;
   }
 
-  // Standard inputs (string value)
-  else if (is(input, 'Input') || is(input, 'TextArea')) {
-    const strVal = String(value ?? '');
-    // Only update if actually changed to prevent cursor jumping
-    if (input.value !== strVal) {
-      input.value = strVal;
+  if (el instanceof HTMLSelectElement) {
+    if (el.multiple && Array.isArray(value)) {
+      const vals = new Set(value.map(String));
+      for (const opt of Array.from(el.options)) {
+        opt.selected = vals.has(opt.value);
+      }
+    } else {
+      el.value = value == null ? '' : String(value);
     }
+    return;
+  }
+
+  if (el instanceof HTMLTextAreaElement) {
+    setStringValue(el, value);
+    return;
   }
 
   // Custom or form elements that expose a `value` property
-  else if ('value' in el) {
+  if ('value' in el) {
     el.value = value;
   }
 }
@@ -87,26 +80,32 @@ export function setModelableValue(el: Element, value: BindableValue) {
  * Returns current value of HTML element.
  */
 export function getModelableValue(el: Element): BindableValue {
-  if (!is(el, 'HTML')) return;
+  if (!(el instanceof HTMLElement)) return;
 
-  // Text of elements with `contenteditable` attribute are modelable
   if (el.isContentEditable) {
     return el.innerText;
   }
 
-  const input = el as HTMLInputElement | HTMLSelectElement;
-
-  if (input.type === 'checkbox') {
-    return (input as HTMLInputElement).checked;
-  }
-  if (input.type === 'number' || input.type === 'range') {
-    return Number.isNaN(input.valueAsNumber) ? null : input.valueAsNumber;
-  }
-  if (is(input, 'Select') && input.multiple) {
-    return Array.from(input.selectedOptions).map((o) => o.value);
+  if (el instanceof HTMLInputElement) {
+    if (el.type === 'checkbox') {
+      return el.checked;
+    }
+    if (el.type === 'number' || el.type === 'range') {
+      return Number.isNaN(el.valueAsNumber) ? null : el.valueAsNumber;
+    }
+    return el.value;
   }
 
-  return input.value;
+  if (el instanceof HTMLSelectElement) {
+    return el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : el.value;
+  }
+
+  if (el instanceof HTMLTextAreaElement) {
+    return el.value;
+  }
+
+  // Custom or form elements that expose a `value` property
+  return 'value' in el ? (el.value as BindableValue) : undefined;
 }
 
 /**
@@ -151,7 +150,7 @@ export function updateClass(el: Element, value: BindableValue) {
  * Add or remove every declaration in a style string, leaving other props intact.
  */
 export function applyStyles(el: Element, decl: string, active: boolean) {
-  if (!(is(el, 'HTML') || is(el, 'SVG'))) return;
+  if (!canBeStyled(el)) return;
 
   for (const [prop, value] of parseDeclarations(decl)) {
     if (active) {
@@ -166,7 +165,7 @@ export function applyStyles(el: Element, decl: string, active: boolean) {
  * Set one CSS property to a resolved value. Nullish clears it.
  */
 export function setStyleProperty(el: Element, prop: string, value: BindableValue) {
-  if (!(is(el, 'HTML') || is(el, 'SVG'))) return;
+  if (!canBeStyled(el)) return;
 
   if (value == null) {
     el.style.removeProperty(prop);
@@ -179,7 +178,7 @@ export function setStyleProperty(el: Element, prop: string, value: BindableValue
  * Handles style attribute updates. Supports object syntax and string value.
  */
 export function updateStyle(el: Element, value: BindableValue) {
-  if (!(is(el, 'HTML') || is(el, 'SVG'))) return;
+  if (!canBeStyled(el)) return;
 
   if (value && typeof value === 'object') {
     Object.assign(el.style, value);
@@ -233,4 +232,20 @@ function warnPropOnce(el: Element, name: string): void {
   if (seen.has(name)) return;
   seen.add(name);
   warn(`rz-prop: cannot set property '${name}'. It is read-only or has no setter.`, el);
+}
+
+/** Checks if an element is a type that can have styles applied to it. */
+function canBeStyled(el: Element): el is HTMLElement | SVGElement {
+  return el instanceof HTMLElement || el instanceof SVGElement;
+}
+
+/** Writes a string value only when it differs, so the caret doesn't jump. */
+function setStringValue(
+  el: HTMLInputElement | HTMLTextAreaElement,
+  value: BindableValue,
+) {
+  const strVal = String(value ?? '');
+  if (el.value !== strVal) {
+    el.value = strVal;
+  }
 }

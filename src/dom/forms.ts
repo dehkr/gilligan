@@ -1,4 +1,3 @@
-import { is } from '../core/is';
 import type { RouseRequest } from '../types';
 
 /**
@@ -10,7 +9,13 @@ export function extractFieldValues(
   method: string,
   config: Partial<RouseRequest>,
 ): void {
-  if (!(is(el, 'Input') || is(el, 'Select') || is(el, 'TextArea'))) {
+  if (
+    !(
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLSelectElement ||
+      el instanceof HTMLTextAreaElement
+    )
+  ) {
     return;
   }
 
@@ -39,7 +44,7 @@ export function extractFieldValues(
   }
 
   // Multi-select
-  else if (is(field, 'Select') && field.multiple) {
+  else if (field instanceof HTMLSelectElement && field.multiple) {
     values = Array.from(field.selectedOptions).map((opt) => opt.value);
   }
 

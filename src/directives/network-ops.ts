@@ -2,7 +2,6 @@ import type { RouseApp } from '../core/app';
 import { directiveSelector, getDirectiveValue } from '../core/attributes';
 import type { PatchAction } from '../core/constants';
 import { warn } from '../core/diagnostics';
-import { is, isNativeNavigation } from '../core/is';
 import {
   parseFetchSubject,
   parseStoreSubject,
@@ -11,7 +10,7 @@ import {
 import { getPathRoot } from '../core/path';
 import { resolveTarget } from '../core/store';
 import { applyTiming } from '../core/timing';
-import { dispatchTrigger } from '../dom/events';
+import { dispatchTrigger, isNativeNavigation } from '../dom/events';
 import { handleFetch } from '../net/fetch-engine';
 import { resolveRequestConfig } from '../net/request';
 import type {
@@ -78,10 +77,10 @@ function defineNetworkOpDirective(
  * a form element's `action` attribute.
  */
 function nativeUrl(el: Element): string {
-  if (is(el, 'Anchor')) {
+  if (el instanceof HTMLAnchorElement) {
     return el.getAttribute('href') ?? '';
   }
-  if (is(el, 'Form')) {
+  if (el instanceof HTMLFormElement) {
     return el.getAttribute('action') ?? '';
   }
   return '';
@@ -116,7 +115,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
 
   // A form without a URL at init can still get one at submit time from the
   // submitter's `formaction`, so bind anyway and validate on dispatch.
-  const deferUrl = is(el, 'Form');
+  const deferUrl = el instanceof HTMLFormElement;
 
   // The URL is shared by every trigger, so resolve and validate it once
   let warnedMissingUrl = false;

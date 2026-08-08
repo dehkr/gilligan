@@ -1,7 +1,6 @@
 import type { AnyFn, BindableValue, DirectiveSlug, HandlerCtx, Scope } from '../types';
 import { KEY_BLOCKLIST, STORE_PREFIX } from './constants';
 import { err, warn } from './diagnostics';
-import { is } from './is';
 import { parseDataSourcePath, parseStoreRef } from './parser';
 import { getNestedVal } from './path';
 import { renderCtxOf } from './render-context';
@@ -55,7 +54,7 @@ export function resolveInjection(
   else if (value.startsWith('#')) {
     const { source: id, nestedPath } = parseDataSourcePath(value);
     const el = document.getElementById(id);
-    if (el && is(el, 'Script') && el.type === 'application/json') {
+    if (el && el instanceof HTMLScriptElement && el.type === 'application/json') {
       const content = el.textContent?.trim();
       if (content) {
         try {

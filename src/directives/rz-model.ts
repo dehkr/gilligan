@@ -2,7 +2,6 @@ import { effect } from 'alien-signals';
 import type { RouseApp } from '../core/app';
 import { directiveSelector } from '../core/attributes';
 import { warn } from '../core/diagnostics';
-import { is } from '../core/is';
 import { parseTriggers } from '../core/parser';
 import { resolveState, writeState } from '../core/resolve';
 import { dispatchTrigger } from '../dom/events';
@@ -22,13 +21,13 @@ import type {
 function modelDefaultTrigger(el: Element): TriggerDef | null {
   const def = (event: string) => ({ event, modifiers: [] });
 
-  if (is(el, 'TextArea') || (el as HTMLElement).isContentEditable) {
+  if (el instanceof HTMLTextAreaElement || (el as HTMLElement).isContentEditable) {
     return def('input');
   }
-  if (is(el, 'Input')) {
+  if (el instanceof HTMLInputElement) {
     return el.type === 'checkbox' || el.type === 'radio' ? def('change') : def('input');
   }
-  if (is(el, 'Select')) {
+  if (el instanceof HTMLSelectElement) {
     return def('change');
   }
 

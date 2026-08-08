@@ -1,6 +1,5 @@
 import type { RouseApp } from '../core/app';
 import { err, warn } from '../core/diagnostics';
-import { is } from '../core/is';
 import { createKey } from '../core/keys';
 import { isPlainObject } from '../core/state';
 import { resolveStoreUrl } from '../core/store';
@@ -42,7 +41,7 @@ export async function handleFetch(
  * @param options - The sanitized request config passed to the network orchestrator.
  */
 async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
-  const isFormEl = is(el, 'Form');
+  const isFormEl = el instanceof HTMLFormElement;
 
   // If the element is removed while the network request is actively in the air
   if (!el.isConnected) {

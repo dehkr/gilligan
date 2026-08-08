@@ -1,6 +1,5 @@
 import { getApp, type RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
-import { isNativeNavigation } from '../core/is';
 import { parseTriggers } from '../core/parser';
 import { applyTiming, isTimeModifier, parseTime } from '../core/timing';
 import type {
@@ -28,6 +27,14 @@ export interface TriggerContext {
 }
 
 export type TriggerSourceHandler = (ctx: TriggerContext) => VoidFn | null;
+
+/** Checks for native anchor or form element navigation events. */
+export function isNativeNavigation(el: Element, e: Event): boolean {
+  return (
+    (e.type === 'submit' && el instanceof HTMLFormElement) ||
+    (e.type === 'click' && el instanceof HTMLAnchorElement)
+  );
+}
 
 /**
  * Dispatches a custom event from an element.
