@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking:** Resolve `rousejs` to the minified build by default instead of the development build, which was shipping diagnostics to production. Use `rousejs/dev` for diagnostics in tools that don't set the `development` condition.
-- **Breaking:** Separate event modifiers from the event with `|` instead of `.` (e.g. `click|debounce.300ms.once`, `rz:store:sync:before|debounce.300ms`). Modifiers remain dot-separated.
 - **Breaking:** Rename the in-flight class from `rz-loading` to `rouse-request`.
 - **Breaking:** Rename `rz:store:sync:conflict` to `rz:store:sync:skipped` and drop its `reason` field.
 - **Breaking:** Reference store status via the `::` namespace operator. `@cart::status.loading` replaces `@cart.__status.loading`, and `__status` is no longer a property of the store data proxy.
@@ -25,13 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `online` -> `network-online`
   - `offline` -> `network-offline`
 - **Breaking:** Stop suppressing native anchor and form navigation for listeners attached programmatically with `app.on`/`ctx.on`.
+- **Breaking:** Separate modifiers from the event with `|` instead of `.` (e.g. `click|debounce.300ms.once`, `rz:store:sync:before|debounce.300ms`). Modifiers remain dot-separated.
+- **Breaking:** Prefix key modifiers with `key-`, matching any `KeyboardEvent.key` value (e.g. `keyup|key-arrowup`, `keydown|ctrl.key-escape`). Replaces a fixed token list, so keys no longer need to be registered to be usable.
+- Allow bare numbers as timing modifiers (e.g. `click|debounce.300`). Resolves to milliseconds.
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 - Accept an object with a `handleEvent` method as the listener for `app.on`/`ctx.on`, matching `addEventListener`.
 
 ### Removed
 
 - **Breaking:** Remove the automatic `aria-busy="true"` on the triggering element. Apply it from an `rz:fetch:start` / `:end` listener pair instead.
-- **Breaking:** Remove `escape` key modifier token. Use `esc`.
 - **Breaking:** Remove `readOnly` and `nonReactive`.
 - **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
 - **Breaking:** Remove the HTTP-method aliases on `app.fetch` and `ctx.fetch`. Pass the method in options: `fetch(url, { method: 'POST' })`.

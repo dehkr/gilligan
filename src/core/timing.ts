@@ -33,10 +33,7 @@ export interface TimedFn<T extends AnyFn> {
 const DEFAULT_DEBOUNCE_MS = 300;
 const DEFAULT_THROTTLE_MS = 150;
 
-// Time-value patterns. The suffixed form requires an explicit unit so a bare
-// number (e.g. 'keydown|debounce.5') isn't mistaken for a wait. The optional
-// form accepts plain numbers (e.g. `timeout: 5000`).
-const SUFFIXED_TIME_REGEX = /^(\d*\.?\d+)(ms|s|m)$/;
+// Accepts an optional unit; a bare number is ms (e.g., `debounce.300`, `timeout: 5000`)
 const TIME_REGEX = /^(\d*\.?\d+)(ms|s|m)?$/;
 
 /**
@@ -62,7 +59,7 @@ export function getTimingConfig(modifiers: string[]): TimingConfig {
     } else if (mod === 'edges') {
       leading = true;
       trailing = true;
-    } else if (SUFFIXED_TIME_REGEX.test(mod)) {
+    } else if (isTimeModifier(mod)) {
       explicitWait = parseTime(mod);
     }
   }

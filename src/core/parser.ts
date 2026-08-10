@@ -3,6 +3,7 @@ import {
   type HttpMethod,
   isHttpMethod,
   isPatchAction,
+  KEY_PREFIX,
   type PatchAction,
   STORE_PREFIX,
 } from './constants';
@@ -189,6 +190,11 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
     const modifiers = modifierGroup
       ? splitOnSafeDelimiter(modifierGroup, '.').filter(Boolean)
       : [];
+
+    __DEV__ &&
+      modifiers.includes(KEY_PREFIX) &&
+      warn(`Empty key modifier in trigger '${trigger}'. Name a key, e.g. 'key-enter'.`);
+
     parsed.push({ event, modifiers });
   }
 

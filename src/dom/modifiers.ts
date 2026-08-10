@@ -1,21 +1,17 @@
 import { getApp } from '../core/app';
+import { KEY_PREFIX } from '../core/constants';
 
-const keyTokens = new Set(
-  'enter tab delete backspace home end pageup pagedown insert f1 f2 f3 f4 f5 f6 f7 f8 f9 f10 f11 f12'.split(
-    ' ',
-  ),
-);
+const isKeyModifier = (m: string) => m.startsWith(KEY_PREFIX);
 
-const keyAliases: Record<string, string> = {
-  esc: 'escape',
-  space: ' ',
-  up: 'arrowup',
-  down: 'arrowdown',
-  left: 'arrowleft',
-  right: 'arrowright',
+/**
+ * Resolves a `key-` modifier to the `KeyboardEvent.key` value it matches,
+ * lowercased. Returns `''` for a bare `key-`, which matches nothing.
+ * `e.key` for the spacebar is a literal space.
+ */
+const resolveKeyToken = (m: string) => {
+  const token = m.slice(KEY_PREFIX.length).toLowerCase();
+  return token === 'space' ? ' ' : token;
 };
-
-const isKeyToken = (m: string) => keyTokens.has(m) || m in keyAliases;
 
 const sysModifierMap = {
   ctrl: 'ctrlKey',
@@ -26,6 +22,14 @@ const sysModifierMap = {
 const SYS_MODIFIER_FLAGS = Object.values(sysModifierMap);
 
 type SystemModifierKey = keyof typeof sysModifierMap;
+
+// The `KeyboardEvent.key` name behind each system modifier flag
+const modifierKeyFlags = new Map<string, (typeof SYS_MODIFIER_FLAGS)[number]>([
+  ['control', 'ctrlKey'],
+  ['alt', 'altKey'],
+  ['shift', 'shiftKey'],
+  ['meta', 'metaKey'],
+]);
 
 /**
  * Maps modifiers to native AddEventListenerOptions.
@@ -72,7 +76,6 @@ export function applyModifiers(
   target: EventTarget,
   modifiers: string[],
 ): boolean {
-  // Target/UI filtering
   if (modifiers.includes('self') && e.target !== e.currentTarget) {
     return false;
   }
@@ -83,60 +86,77 @@ export function applyModifiers(
     }
   }
 
-  // System modifier and key checks
   if (e instanceof KeyboardEvent || e instanceof MouseEvent) {
-    const expectedSysModifiers = modifiers.filter(
-      (m): m is SystemModifierKey => m in sysModifierMap,
+    const expectedSysModifiers = modifiers.filter((m): m is SystemModifierKey =>
+      Object.hasOwn(sysModifierMap, m),
     );
 
-    // Check required modifiers are pressed
     for (const mod of expectedSysModifiers) {
       if (!e[sysModifierMap[mod]]) {
         return false;
       }
     }
 
-    const hasKeyModifier =
+    const keyModifiers =
+      e instanceof KeyboardEvent ? modifiers.filter(isKeyModifier) : [];
+
+    // A system modifier qualifies another key rather than filtering on its own. A
+    // keyboard trigger without a `key-` token has nothing to qualify, so it's inert.
+    // A mouse event still filters on it (`click|ctrl`).
+    if (
       e instanceof KeyboardEvent &&
-      modifiers.some((m) => isKeyToken(m) || m.length === 1);
+      expectedSysModifiers.length > 0 &&
+      keyModifiers.length === 0
+    ) {
+      return false;
+    }
 
     // Exact matching only applies when the trigger asks for specific keys or
     // modifiers. A bare trigger shouldn't be blocked by a held `shift` or `ctrl`.
     const exact =
-      !modifiers.includes('loose') && (expectedSysModifiers.length > 0 || hasKeyModifier);
+      !modifiers.includes('loose') &&
+      (expectedSysModifiers.length > 0 || keyModifiers.length > 0);
 
     if (exact) {
-      const pressedModifiers = SYS_MODIFIER_FLAGS.filter((key) => e[key]);
-      if (pressedModifiers.length !== expectedSysModifiers.length) {
+      // Pressing a modifier key sets its own flag, so it isn't an extra modifier
+      // unless the trigger asked for it. Allows `keydown|key-shift` to work.
+      const selfFlag =
+        e instanceof KeyboardEvent
+          ? modifierKeyFlags.get(e.key.toLowerCase())
+          : undefined;
+
+      const expectedFlags = expectedSysModifiers.map((m) => sysModifierMap[m]);
+
+      const pressedModifiers = SYS_MODIFIER_FLAGS.filter(
+        (key) => e[key] && (key !== selfFlag || expectedFlags.includes(key)),
+      );
+
+      if (pressedModifiers.length !== expectedFlags.length) {
         return false;
       }
     }
 
-    // Key filtering
-    if (e instanceof KeyboardEvent && hasKeyModifier) {
+    if (e instanceof KeyboardEvent && keyModifiers.length > 0) {
       const pressedKey = e.key.toLowerCase();
       const pressedCode = e.code.toLowerCase();
 
-      // Find if any modifier matches the key pressed
-      const isMatch = modifiers.some((m) => {
-        if (m in sysModifierMap) return false;
-
-        const expected = keyAliases[m] ?? m.toLowerCase();
+      const isMatch = keyModifiers.some((m) => {
+        const expected = resolveKeyToken(m);
+        if (!expected) return false;
         if (pressedKey === expected) return true;
 
         // Fallback to fix macOS 'alt' dead key
         if (expected.length === 1) {
-          if (expected === ' ' && pressedCode === 'space') return true;
-
+          if (expected === ' ') {
+            return pressedCode === 'space';
+          }
           return pressedCode === `key${expected}` || pressedCode === `digit${expected}`;
         }
 
         return false;
       });
 
-      if (!isMatch) {
-        return false;
-      }
+      if (!isMatch) return false;
     }
   }
 
