@@ -90,10 +90,7 @@ function nativeUrl(el: Element): string {
  * Extracts `formaction` and `formmethod` from the button that triggered a
  * submit event to override the form's default request configuration.
  */
-function applySubmitterOverrides(
-  baseOpts: { method?: string; url?: string },
-  e?: Event,
-): RouseRequest {
+function applySubmitterOverrides(baseOpts: RouseRequest, e?: Event): RouseRequest {
   const opts: RouseRequest = { ...baseOpts };
   const sub = e instanceof SubmitEvent ? e.submitter : null;
 
@@ -146,7 +143,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
         if (e && isNativeNavigation(el, e)) {
           e.preventDefault();
         }
-        const opts = applySubmitterOverrides({ ...parsed, url }, e);
+        const opts = applySubmitterOverrides({ ...parsed, url, triggerEl: el }, e);
         if (!opts.url) {
           __DEV__ &&
             warn(

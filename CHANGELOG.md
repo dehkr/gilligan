@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix the `once` modifier being ignored by trigger sources that don't self-terminate: `interval`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.
+- Stop `app.fetch` and `ctx.fetch` from reporting a `triggerEl`. It is now set only by `rz-fetch`, naming the element hosting the directive.
 
 ## [0.11.0] - 2026-07-27
 

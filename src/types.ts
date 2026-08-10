@@ -454,7 +454,10 @@ export interface FetchConfig {
   target?: Element | string;
   /** CSS selector for elements to receive the rouse request class for the duration of the request. */
   indicator?: string | null;
-  /** The element that triggered the request. Used to resolve `rz-request` config layers. */
+  /**
+   * The element hosting the `rz-fetch` that initiated the request. Set by the declarative
+   * path; programmatic requests leave it unset unless the caller supplies one.
+   */
   triggerEl?: Element;
   /** Request headers. A `null` value removes the header. Empty strings are sent as-is. */
   headers?: Record<string, string | null>;

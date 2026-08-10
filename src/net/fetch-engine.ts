@@ -100,7 +100,6 @@ async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
     ...options,
     method,
     abortKey: options.abortKey || finalRequestInit.abortKey || autoAbortKey,
-    triggerEl: el,
     form: !hasExplicitBody && isFormEl ? el : undefined,
   };
 
