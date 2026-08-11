@@ -1,11 +1,12 @@
 import { getApp, type RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
-import { parseTriggers } from '../core/parser';
 import { applyTiming, parseTime } from '../core/timing';
 import type {
   ActionFn,
+  BoundOn,
   EventCallback,
   LifecycleEventMap,
+  ListenerOptions,
   TriggerDef,
   TriggerEvent,
   TriggerOptions,
@@ -110,9 +111,8 @@ function attachListener<D = any>(
 }
 
 /**
- * Parses a multi-event + modifier string, dispatches each trigger through
- * the trigger-source registry (via `dispatchTrigger` or `attachListener`),
- * and returns a single aggregate cleanup that tears them all down.
+ * Attaches a listener for one event name, or for each name in an array,
+ * and returns a single aggregate cleanup.
  *
  * Backs `app.on` and `ctx.on`, which bind it to an app- or scope-lifetime
  * abort signal. The optional `app` is threaded to the trigger engine so
@@ -120,54 +120,54 @@ function attachListener<D = any>(
  * DOM lookup (and work on non-element targets such as `window`).
  *
  * @example
- * ctx.on(el, 'click|debounce-500ms', handleClick);
- * app.on('page-visible network-online', sync);
+ * ctx.on(el, 'click', handleClick, { debounce: 500 });
+ * app.on(['page-visible', 'network-online'], sync);
  */
 export function on<N extends string>(
   target: EventTarget,
-  events: N,
+  events: N | N[],
   callback: EventCallback<TriggerEvent<N>>,
-  abortSignal?: AbortSignal,
+  options?: ListenerOptions,
   app?: RouseApp,
 ): VoidFn;
 
 export function on(
   target: EventTarget,
-  events: string,
+  events: string | string[],
   callback: EventCallback<any>,
-  abortSignal?: AbortSignal,
+  options: ListenerOptions = {},
   app?: RouseApp,
 ): VoidFn {
+  const { signal, ...triggerOptions } = options;
+
   // Bail before attaching on an already-aborted signal. Otherwise the
   // listeners attach and the abort event never fires to remove them.
-  if (abortSignal?.aborted) return () => {};
+  if (signal?.aborted) return () => {};
 
-  const triggers = parseTriggers(events);
-  if (triggers.length === 0) return () => {};
-
-  const cleanups: Array<VoidFn> = [];
-
-  // Mirror addEventListener: an object listener dispatches through `handleEvent`,
-  // resolved per call so it can be swapped after binding.
+  // An object with a `handleEvent` method can be used as the listener, mirroring
+  // `addEventListener`. Resolved per call so it can be swapped after binding.
   const action: ActionFn =
     typeof callback === 'function'
       ? (callback as ActionFn)
       : (e?: Event) => callback.handleEvent(e as Event);
 
-  for (const trigger of triggers) {
-    const cleanup = dispatchTrigger(trigger, {
-      el: target as Element,
-      app,
-      action,
-      suppressNavigation: false,
-    });
+  const cleanups: Array<VoidFn> = [];
+
+  for (const entry of Array.isArray(events) ? events : [events]) {
+    const event = entry.trim();
+
+    const cleanup = dispatchTrigger(
+      { event, options: triggerOptions },
+      { el: target as Element, app, action, suppressNavigation: false },
+    );
+
     if (cleanup) {
       cleanups.push(cleanup);
     }
   }
 
-  if (abortSignal) {
-    abortSignal.addEventListener(
+  if (signal) {
+    signal.addEventListener(
       'abort',
       () => {
         for (const fn of cleanups) fn();
@@ -178,6 +178,30 @@ export function on(
 
   return () => {
     for (const fn of cleanups) fn();
+  };
+}
+
+/**
+ * Builds the `app.on` and `ctx.on` surface: a listener bound to an owner's lifetime
+ * signal, defaulting to `defaultTarget` when the caller omits an `EventTarget`.
+ */
+export function createBoundOn(
+  defaultTarget: EventTarget,
+  ownerSignal: AbortSignal,
+  app: RouseApp,
+): BoundOn {
+  return (...args: any[]): VoidFn => {
+    // A string or array first argument means the target was omitted
+    const implied = typeof args[0] === 'string' || Array.isArray(args[0]);
+    const target = implied ? defaultTarget : args[0];
+    const event = implied ? args[0] : args[1];
+    const callback = implied ? args[1] : args[2];
+    const options: ListenerOptions = (implied ? args[2] : args[3]) ?? {};
+    const signal = options.signal
+      ? AbortSignal.any([ownerSignal, options.signal])
+      : ownerSignal;
+
+    return on(target, event, callback, { ...options, signal }, app);
   };
 }
 

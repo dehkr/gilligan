@@ -6,7 +6,7 @@ import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
 import type { RouseFetch, ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
-import { attachWakeStrategies, dispatch, on } from './events';
+import { attachWakeStrategies, createBoundOn, dispatch } from './events';
 
 export const IS_SCOPE: unique symbol = Symbol('rz.scope');
 
@@ -147,18 +147,7 @@ function createScope(
     stores: app.stores,
     term: abortCtrl.signal,
     fetch: scopedFetch,
-    on: (...args: any[]) => {
-      // If the first argument is a string, assume target was omitted
-      const isImplied = typeof args[0] === 'string';
-      const target = isImplied ? el : args[0];
-      const events = isImplied ? args[0] : args[1];
-      const callback = isImplied ? args[1] : args[2];
-      const customSignal = isImplied ? args[2] : args[3];
-      const activeSignal = customSignal
-        ? AbortSignal.any([abortCtrl.signal, customSignal])
-        : abortCtrl.signal;
-      return on(target, events, callback, activeSignal, app);
-    },
+    on: createBoundOn(el, abortCtrl.signal, app),
     // Allows for triggering a scan from inside the scope
     scan: (newNode: Element) => binding?.scan(newNode),
   };

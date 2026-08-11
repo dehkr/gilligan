@@ -18,7 +18,7 @@ import {
   teardownGlobalBindings,
   walkBoundElements,
 } from '../dom/binder';
-import { dispatch, on } from '../dom/events';
+import { createBoundOn, dispatch } from '../dom/events';
 import { initObserver } from '../dom/observer';
 import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
@@ -110,16 +110,17 @@ export class RouseApp {
   public fetch: RouseFetch;
   /**
    * Adds an event listener that is auto-removed when the app is destroyed. Listens
-   * on `app.root` unless an `EventTarget` is passed first. An optional `AbortSignal`
-   * is combined with the app's own. The programmatic twin of `rz-on` with the same
-   * trigger sources and modifiers. Safe to call before `app.start()`.
+   * on `app.root` unless an `EventTarget` is passed first. Modifiers, filters, and
+   * timing are passed as options, with an optional `AbortSignal` combined with the
+   * app's own. The programmatic twin of `rz-on`, with the same trigger sources.
+   * Safe to call before `app.start()`.
    *
    * @returns A teardown closure that removes the listener early.
    *
    * @example
    * app.on('page-visible', refetch);
-   * app.on('click|debounce-300ms', onClick);
-   * app.on(window, 'online offline', sync);
+   * app.on('click', onClick, { debounce: 300 });
+   * app.on(window, ['online', 'offline'], sync);
    */
   public on: BoundOn;
   public _interceptors: {
@@ -187,19 +188,7 @@ export class RouseApp {
     this._abortController = new AbortController();
 
     // A lifecycle-safe listener bound to the app-lifetime signal, auto-removed on `destroy`
-    this.on = (...args: any[]): VoidFn => {
-      const implied = typeof args[0] === 'string';
-      const target = implied ? this.root : args[0];
-      const events = implied ? args[0] : args[1];
-      const callback = implied ? args[1] : args[2];
-      const customSignal = implied ? args[2] : args[3];
-
-      const signal = customSignal
-        ? AbortSignal.any([this._abortController.signal, customSignal])
-        : this._abortController.signal;
-
-      return on(target, events, callback, signal, this);
-    };
+    this.on = createBoundOn(this.root, this._abortController.signal, this);
   }
 
   /**

@@ -27,7 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Separate modifiers from the event with `|` instead of `.` (e.g., `click|debounce.once`). Modifiers remain dot-separated.
 - **Breaking:** Write the optional wait for debounce and throttle modifiers using a dash; `click|debounce-300ms` replaces `click|debounce.300ms`.
 - **Breaking:** Prefix key modifiers with `key-`, matching any `KeyboardEvent.key` value (e.g., `keyup|key-arrowup`, `keydown|ctrl.key-escape`). Replaces a fixed token list, so keys no longer need to be registered to be usable.
-- Allow bare numbers as timing modifiers that resolve to milliseconds (e.g., `interval|300`).
+- **Breaking:** Pass trigger modifiers to `app.on`/`ctx.on` as an options object: `app.on('click', onClick, { debounce: 300, once: true })`.
+- **Breaking:** Accept multiple events for `app.on`/`ctx.on` as an array rather than a whitespace-separated string: `app.on(['page-visible', 'network-online'], sync)`.
+- **Breaking:** Move the `AbortSignal` argument of `app.on`/`ctx.on` into the options object as `signal`, matching `addEventListener`.
+- Allow bare number timing modifiers that resolve to milliseconds (e.g., `interval|300`).
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 - Accept an object with a `handleEvent` method as the listener for `app.on`/`ctx.on`, matching `addEventListener`.
 

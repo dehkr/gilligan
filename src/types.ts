@@ -401,30 +401,17 @@ export type TriggerSubjectPair = {
   subject: string | null;
 };
 
-/** Strips trigger modifiers: `click|debounce-300ms` -> `click`. */
-type TriggerName<S extends string> = S extends `${infer E}|${string}` ? E : S;
-
-/** Splits a whitespace-separated trigger string into a union of bare event names. */
-type TriggerNames<S extends string> = string extends S
-  ? string
-  : S extends `${infer A} ${infer B}`
-    ? TriggerName<A> | TriggerNames<B>
-    : TriggerName<S>;
-
 /**
- * The event type a trigger string yields: a lifecycle event's typed detail, a native
- * event's own type, or `CustomEvent<any>` for names the DOM doesn't define.
+ * The event type a name yields: a lifecycle event's typed detail, a native event's
+ * own type, or `CustomEvent<any>` for names the DOM doesn't define.
  */
-export type TriggerEvent<S extends string> =
-  TriggerNames<S> extends infer E extends string
-    ? E extends keyof LifecycleEventMap
-      ? CustomEvent<LifecycleEventMap[E]>
-      : E extends keyof HTMLElementEventMap
-        ? HTMLElementEventMap[E]
-        : E extends keyof WindowEventMap
-          ? WindowEventMap[E]
-          : CustomEvent<any>
-    : never;
+export type TriggerEvent<S extends string> = S extends keyof LifecycleEventMap
+  ? CustomEvent<LifecycleEventMap[S]>
+  : S extends keyof HTMLElementEventMap
+    ? HTMLElementEventMap[S]
+    : S extends keyof WindowEventMap
+      ? WindowEventMap[S]
+      : CustomEvent<any>;
 
 /** A listener callback, or an object with `handleEvent`, as `addEventListener` accepts. */
 export type EventCallback<E> = ((ev: E) => void) | { handleEvent(ev: E): void };
@@ -602,23 +589,30 @@ export type ScopeSetup<
   E extends Element = HTMLElement,
 > = (ctx: ScopeCtx<P, E>) => Scope;
 
+/** Options for `app.on` and `ctx.on`: a trigger's modifiers, plus a caller abort signal. */
+export type ListenerOptions = TriggerOptions & {
+  /** Combined with the app or scope lifetime signal. Aborting removes the listeners. */
+  signal?: AbortSignal;
+};
+
 /**
  * The overload shape shared by `app.on` and `ctx.on`. Listens on a default
  * target (the app root or the scope host) unless an `EventTarget` is passed
- * first. An optional `AbortSignal` is combined with the owner's lifetime
- * signal. Returns a teardown function.
+ * first. Modifiers, filters, and timing are passed as options, along with an
+ * optional `AbortSignal` combined with the owner's lifetime signal. Returns a
+ * teardown function.
  */
 export type BoundOn = {
   <N extends string>(
-    events: N,
+    events: N | N[],
     callback: EventCallback<TriggerEvent<N>>,
-    customSignal?: AbortSignal,
+    options?: ListenerOptions,
   ): VoidFn;
   <N extends string>(
     target: EventTarget,
-    events: N,
+    events: N | N[],
     callback: EventCallback<TriggerEvent<N>>,
-    customSignal?: AbortSignal,
+    options?: ListenerOptions,
   ): VoidFn;
 };
 
@@ -646,9 +640,10 @@ export type ScopeCtx<
   fetch: RouseFetch;
   /**
    * Adds an event listener that is auto-removed when the scope is destroyed. Listens
-   * on the scope host unless an `EventTarget` is passed first. An optional `AbortSignal`
-   * is combined with the scope's own (`term`). The programmatic twin of `rz-on` with the
-   * same trigger sources and modifiers. Returns a teardown function.
+   * on the scope host unless an `EventTarget` is passed first. Modifiers, filters, and
+   * timing are passed as options, with an optional `AbortSignal` combined with the
+   * scope's own (`term`). The programmatic twin of `rz-on`, with the same trigger
+   * sources. Returns a teardown function.
    */
   on: BoundOn;
   /** Scan a newly added DOM subtree for directives and initialize them. */
