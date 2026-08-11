@@ -28,8 +28,8 @@ const isCloser = (char: string): char is BoundaryCloser => Object.hasOwn(closers
 const isOpener = (char: string): char is BoundaryOpener => openers.has(char);
 
 /**
- * Splits a directive value into `[key, value]` pairs. Pairs are comma-separated;
- * within a pair, the first `': '` (colon + whitespace) separates key from value.
+ * Splits a directive value into `[key, value]` pairs. Pairs are separated by ', '
+ * (comma + whitespace); within a pair, the first ': ' separates key from value.
  * A bare key parses with a `null` value; a trailing colon warns and skips the
  * segment. Quotes and bracket boundaries are respected throughout.
  *
@@ -151,20 +151,21 @@ export function parseTriggerSubjectPairs(
 }
 
 /**
- * Resolves dot-separated modifier tokens into `TriggerOptions`. A `name-value`
- * token binds a value to that modifier; a bare value is an argument to the event.
+ * Resolves dot-separated modifier tokens into `TriggerOptions`. A bare name is
+ * a flag (`once`); a `name-value` token binds a value to that modifier
+ * (`debounce-300ms`); a bare value is an argument to the event (`30s`).
  */
 function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
   const options: TriggerOptions = {};
   const keys: string[] = [];
 
   for (const token of tokens) {
-    // Exact matches are tested first, so a hyphenated modifier name like
-    // `stop-immediate` isn't processed as a [name]-[value] pair.
     const dash = token.indexOf('-');
     const name = dash > 0 ? token.slice(0, dash) : '';
     const value = dash > 0 ? token.slice(dash + 1) : '';
 
+    // Exact matches are tested first, so a hyphenated modifier name like
+    // `stop-immediate` isn't processed as a [name]-[value] pair.
     if (isFlagModifier(token)) {
       options[FLAG_MODIFIERS[token]] = true;
     } else if (isListenTarget(token)) {
@@ -197,9 +198,7 @@ function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
 
 /**
  * Parses a raw trigger string into trigger definitions, splitting on whitespace
- * outside quotes and boundaries. A single `|` separates the event from its
- * dot-separated modifiers, each of which takes a value with a dash
- * (`debounce-300ms`). Commas are rejected; multi-trigger values are
+ * outside quotes and boundaries. Commas are rejected; multi-trigger values are
  * space-separated.
  *
  * @example
@@ -410,9 +409,9 @@ export function parseDeclarations(decl: string): Array<[string, string]> {
 }
 
 /**
- * Splits `text` on every unescaped occurrence of `delimiter` at depth 0,
- * returning the resulting segments. Empty segments are preserved, so callers
- * can distinguish a missing part from an absent one; filter where they're noise.
+ * Splits `text` on every occurrence of `delimiter` outside quotes and bracket boundaries,
+ * returning the resulting segments. Empty segments are preserved, so callers can
+ * distinguish a missing part from an absent one; filter where they're noise.
  *
  * Centralises the start-pointer / slice / remainder pattern that would otherwise
  * be repeated across every parsing function.
@@ -440,8 +439,8 @@ function splitOnSafeDelimiter(
 }
 
 /**
- * Iterates through text and fires a callback for each character that is safe
- * (i.e. not inside quotes, parentheses, curly braces, or square brackets).
+ * Iterates through text and fires a callback for each top-level character that
+ * isn't a quote or bracket.
  *
  * Returns the final scan state, which can be used to detect malformed input
  * (e.g. unclosed brackets or quotes).
