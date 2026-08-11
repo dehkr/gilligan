@@ -74,3 +74,36 @@ export type PatchAction = (typeof PATCH_ACTIONS)[number];
 export function isPatchAction(key: string | undefined): key is PatchAction {
   return PATCH_ACTIONS.includes(key?.toLowerCase() as PatchAction);
 }
+
+/**
+ * Bare trigger modifiers that set a boolean `TriggerOptions` field, mapped to
+ * that field. The declarative spelling is kebab-case; the field is camelCase.
+ */
+export const FLAG_MODIFIERS = {
+  once: 'once',
+  capture: 'capture',
+  passive: 'passive',
+  outside: 'outside',
+  self: 'self',
+  loose: 'loose',
+  ctrl: 'ctrl',
+  alt: 'alt',
+  shift: 'shift',
+  meta: 'meta',
+  prevent: 'prevent',
+  stop: 'stop',
+  'stop-immediate': 'stopImmediate',
+} as const;
+
+export type FlagModifier = keyof typeof FLAG_MODIFIERS;
+
+export const isFlagModifier = (val: string): val is FlagModifier =>
+  Object.hasOwn(FLAG_MODIFIERS, val);
+
+/** Modifiers naming a host for the listener other than the element itself. */
+export const LISTEN_TARGETS = ['window', 'document', 'root'] as const;
+
+export type ListenTarget = (typeof LISTEN_TARGETS)[number];
+
+export const isListenTarget = (val: string): val is ListenTarget =>
+  (LISTEN_TARGETS as readonly string[]).includes(val);

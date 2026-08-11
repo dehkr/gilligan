@@ -19,7 +19,7 @@ import type {
  * anything without a known default return `null`.
  */
 function modelDefaultTrigger(el: Element): TriggerDef | null {
-  const def = (event: string) => ({ event, modifiers: [] });
+  const def = (event: string) => ({ event, options: {} });
 
   if (el instanceof HTMLTextAreaElement || (el as HTMLElement).isContentEditable) {
     return def('input');

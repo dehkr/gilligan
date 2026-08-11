@@ -1,4 +1,4 @@
-import type { AnyFn, VoidFn } from '../types';
+import type { AnyFn, TriggerOptions, VoidFn } from '../types';
 import { warn } from './diagnostics';
 
 /**
@@ -37,46 +37,38 @@ const DEFAULT_THROTTLE_MS = 150;
 const TIME_REGEX = /^(\d*\.?\d+)(ms|s|m)?$/;
 
 /**
- * Parses an array of timing modifiers (e.g., 'debounce', '500ms', 'leading')
- * into a structured configuration object.
+ * Resolves a trigger's timing options into a strategy config.
  */
-export function getTimingConfig(modifiers: string[]): TimingConfig {
-  let strategy: TimingConfig['strategy'];
-  let explicitWait: number | undefined;
+export function getTimingConfig(options: TriggerOptions): TimingConfig {
+  const { debounce: debounceOpt, throttle: throttleOpt } = options;
 
-  let leading: boolean | undefined;
-  let trailing: boolean | undefined;
+  const strategy: TimingConfig['strategy'] =
+    debounceOpt !== undefined
+      ? 'debounce'
+      : throttleOpt !== undefined
+        ? 'throttle'
+        : undefined;
 
-  for (const mod of modifiers) {
-    if (mod === 'debounce' || mod === 'throttle') {
-      strategy = mod;
-    } else if (mod === 'leading') {
-      leading = true;
-      trailing = false;
-    } else if (mod === 'trailing') {
-      leading = false;
-      trailing = true;
-    } else if (mod === 'edges') {
-      leading = true;
-      trailing = true;
-    } else if (isTimeModifier(mod)) {
-      explicitWait = parseTime(mod);
-    }
-  }
+  const value = debounceOpt ?? throttleOpt;
+  const explicitWait =
+    value === undefined || value === true ? undefined : parseTime(value);
 
-  // Determine final wait time (explicit > strategy default > safe fallback)
+  // Explicit wait > strategy default > safe fallback
   const wait =
     explicitWait ?? (strategy === 'throttle' ? DEFAULT_THROTTLE_MS : DEFAULT_DEBOUNCE_MS);
 
-  // Apply common pattern defaults for leading/trailing edge execution
-  if (leading === undefined && trailing === undefined) {
-    if (strategy === 'throttle') {
-      leading = true;
-      trailing = true;
-    } else if (strategy === 'debounce') {
-      leading = false;
-      trailing = true;
-    }
+  let { leading, trailing } = options;
+
+  // Naming at least one edge opts out of the strategy defaults
+  if (leading !== undefined || trailing !== undefined) {
+    leading = !!leading;
+    trailing = !!trailing;
+  } else if (strategy === 'throttle') {
+    leading = true;
+    trailing = true;
+  } else if (strategy === 'debounce') {
+    leading = false;
+    trailing = true;
   }
 
   return { strategy, wait, leading, trailing };
@@ -178,10 +170,10 @@ export function throttle<T extends AnyFn>(
 
 /**
  * Wraps a function with a timing strategy (debounce or throttle) based on the
- * provided modifiers. Returns an augmented raw function if no strategy is matched.
+ * provided options. Returns an augmented raw function if no strategy is matched.
  */
-export function applyTiming<T extends AnyFn>(fn: T, modifiers: string[]): TimedFn<T> {
-  const config = getTimingConfig(modifiers);
+export function applyTiming<T extends AnyFn>(fn: T, options: TriggerOptions): TimedFn<T> {
+  const config = getTimingConfig(options);
 
   if (config.strategy === 'debounce') {
     return debounce(fn, config);

@@ -2,6 +2,7 @@ import type { RouseApp } from './core/app';
 import type {
   ITEM_KEY,
   ITEM_META_KEY,
+  ListenTarget,
   PatchAction,
   RENDER_PARENT,
   SwapMethod,
@@ -328,12 +329,68 @@ export type RenderContext = Scope & {
   [RENDER_PARENT]?: Scope;
 };
 
-/** Parsed trigger event with modifiers. */
+/**
+ * The canonical, resolved representation of a trigger's modifiers.
+ *
+ * The HTML grammar (`click|debounce.300ms.once`) is its serialized form, produced by
+ * `parseTriggers`. Consumers read fields from this object rather than scanning tokens.
+ */
+export interface TriggerOptions {
+  /** Remove the listener after it fires. Events rejected by a filter don't count. */
+  once?: boolean;
+  /** Listen during the capture phase. */
+  capture?: boolean;
+  /** Attach as a passive listener. */
+  passive?: boolean;
+
+  /** Attach the listener elsewhere. Filters and trigger sources still act on the element. */
+  listenOn?: ListenTarget;
+  /** Fire only for events originating outside the element. Listens on `document`. */
+  outside?: boolean;
+
+  /** Fire only when the element is the event target, not a descendant. */
+  self?: boolean;
+  /** Allow unrequested system modifiers to be held. */
+  loose?: boolean;
+  /** `KeyboardEvent.key` value(s) to match, compared case-insensitively. */
+  key?: string | string[];
+  /** Require the Control key. */
+  ctrl?: boolean;
+  /** Require the Alt key. */
+  alt?: boolean;
+  /** Require the Shift key. */
+  shift?: boolean;
+  /** Require the Meta key. */
+  meta?: boolean;
+
+  /** Call `preventDefault()` before the action runs. */
+  prevent?: boolean;
+  /** Call `stopPropagation()` before the action runs. */
+  stop?: boolean;
+  /** Call `stopImmediatePropagation()` before the action runs. */
+  stopImmediate?: boolean;
+
+  /** Debounce the action. `true` uses the default wait. */
+  debounce?: number | string | true;
+  /** Throttle the action. `true` uses the default wait. */
+  throttle?: number | string | true;
+  /** Run on the leading edge of the timing window. */
+  leading?: boolean;
+  /** Run on the trailing edge of the timing window. */
+  trailing?: boolean;
+
+  /** Delay or period for the `timeout` and `interval` trigger sources. */
+  wait?: number | string;
+  /** Media query for the `media` trigger source. */
+  query?: string;
+}
+
+/** Parsed trigger event with its resolved options. */
 export type TriggerDef = {
-  /** The DOM event name, stripped of modifiers (e.g. `click`, `input`). */
+  /** The DOM event or trigger-source name, stripped of modifiers. */
   event: string;
-  /** Modifiers parsed off the trigger (e.g. `once`, `prevent`, `debounce`, `300ms`). */
-  modifiers: string[];
+  /** The trigger's resolved modifiers. */
+  options: TriggerOptions;
 };
 
 /** A trigger paired with its subject. `subject` is `null` when the directive resolves the URL/target from the element itself. */

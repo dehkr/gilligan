@@ -190,7 +190,7 @@ function bindStorePairs(
 
     if (op === 'push' && trigger.event === 'edit') {
       cleanups.push(
-        bindStoreEditTrigger(app, storeName, trigger.modifiers, fire, nestedPath),
+        bindStoreEditTrigger(app, storeName, trigger.options, fire, nestedPath),
       );
       continue;
     }
@@ -234,7 +234,7 @@ function triggerStoreSync(
 function bindStoreEditTrigger(
   app: RouseApp,
   storeName: string,
-  modifiers: TriggerDef['modifiers'],
+  options: TriggerDef['options'],
   fire: VoidFn,
   nestedPath: string,
 ): VoidFn {
@@ -250,7 +250,7 @@ function bindStoreEditTrigger(
     fire();
   };
 
-  const debouncedFire = applyTiming(guardedFire, modifiers);
+  const debouncedFire = applyTiming(guardedFire, options);
   const stopListener = app.stores.onEdit(storeName, debouncedFire);
 
   return () => {

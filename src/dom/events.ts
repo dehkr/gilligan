@@ -1,13 +1,14 @@
 import { getApp, type RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
 import { parseTriggers } from '../core/parser';
-import { applyTiming, isTimeModifier, parseTime } from '../core/timing';
+import { applyTiming, parseTime } from '../core/timing';
 import type {
   ActionFn,
   EventCallback,
   LifecycleEventMap,
   TriggerDef,
   TriggerEvent,
+  TriggerOptions,
   VoidFn,
 } from '../types';
 import { applyModifiers, getListenerOptions, resolveListenerTarget } from './modifiers';
@@ -15,13 +16,15 @@ import { applyModifiers, getListenerOptions, resolveListenerTarget } from './mod
 export interface TriggerContext {
   el: Element;
   app?: RouseApp;
-  modifiers: string[];
+  options: TriggerOptions;
   action: ActionFn;
   /**
-   * Suppress native navigation (anchor clicks, form submits) before the action runs.
-   * Defaults to `true`: a directive on an anchor or form is taking the interaction
-   * over. `app.on`/`ctx.on` pass `false`: a programmatic listener observes an element,
-   * it doesn't take control of it. Those callers opt in with the `prevent` modifier.
+   * Whether to suppress the browser's native navigation before running the action.
+   *
+   * Defaults to `true`: directives on anchors and forms take ownership of the
+   * interaction. `app.on`/`ctx.on` default to `false` because a programmatic listener
+   * observes an element, it doesn't take control of it. Those callers can opt in
+   * with the `prevent` modifier.
    */
   suppressNavigation?: boolean;
 }
@@ -76,22 +79,24 @@ export function dispatch(
  * @returns Cleanup function that removes the listener.
  */
 function attachListener<D = any>(
-  el: EventTarget,
+  el: Element,
   name: string,
   callback: (ev: CustomEvent<D>) => void,
-  modifiers: string[] = [],
+  triggerOptions: TriggerOptions = {},
 ): VoidFn {
-  const options = getListenerOptions(modifiers);
+  const options = getListenerOptions(triggerOptions);
   const listener = (e: Event) => {
-    if (!applyModifiers(e, el, modifiers)) return;
+    if (!applyModifiers(e, el, triggerOptions)) return;
 
     // Native `once` would consume the listener on filtered-out events,
     // so removal happens here, after the modifiers pass.
-    if (options.once) cleanup();
+    if (options.once) {
+      cleanup();
+    }
     callback(e as CustomEvent<D>);
   };
 
-  const target = resolveListenerTarget(el as Element, modifiers);
+  const target = resolveListenerTarget(el, triggerOptions);
   const cleanup = () => {
     target.removeEventListener(name, listener, options.capture);
   };
@@ -191,9 +196,9 @@ export function on(
  */
 export function dispatchTrigger(
   trigger: TriggerDef,
-  base: Omit<TriggerContext, 'modifiers'>,
+  base: Omit<TriggerContext, 'options'>,
 ): VoidFn | null {
-  const timed = applyTiming(base.action, trigger.modifiers);
+  const timed = applyTiming(base.action, trigger.options);
   const suppressNavigation = base.suppressNavigation ?? true;
 
   const wrapCleanup = (cleanup: VoidFn | null): VoidFn => {
@@ -207,7 +212,7 @@ export function dispatchTrigger(
   if (handler) {
     const cleanup = attachTriggerSource(handler, {
       ...base,
-      modifiers: trigger.modifiers,
+      options: trigger.options,
       action: timed,
     });
 
@@ -223,7 +228,7 @@ export function dispatchTrigger(
       }
       timed(e);
     },
-    trigger.modifiers,
+    trigger.options,
   );
 
   return wrapCleanup(cleanup);
@@ -241,7 +246,7 @@ function attachTriggerSource(
   handler: TriggerSourceHandler,
   ctx: TriggerContext,
 ): VoidFn | null {
-  if (!ctx.modifiers.includes('once')) return handler(ctx);
+  if (!ctx.options.once) return handler(ctx);
 
   const action = ctx.action;
   let cleanup: VoidFn | null = null;
@@ -371,8 +376,8 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   interval: (ctx) => attachTimingSource('interval', ctx),
 
   /** Listens to a media query. */
-  media: ({ el, modifiers, action }) => {
-    const query = modifiers.find((m) => m.startsWith('(') && m.endsWith(')'));
+  media: ({ el, options, action }) => {
+    const query = options.query;
 
     if (!query) {
       __DEV__ && warn(`The 'media' event requires a query modifier in parentheses.`, el);
@@ -439,14 +444,14 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
  * Helper for the `timeout` and `interval` trigger sources.
  */
 function attachTimingSource(type: 'timeout' | 'interval', ctx: TriggerContext) {
-  const timeModifier = ctx.modifiers.find(isTimeModifier);
+  const { wait } = ctx.options;
 
-  if (!timeModifier) {
+  if (wait === undefined) {
     __DEV__ && warn(`Missing timing modifier for '${type}'.`, ctx.el);
     return null;
   }
 
-  const ms = parseTime(timeModifier);
+  const ms = parseTime(wait);
   if (ms <= 0) return null;
 
   const setup = type === 'timeout' ? window.setTimeout : window.setInterval;

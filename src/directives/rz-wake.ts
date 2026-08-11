@@ -10,7 +10,7 @@ function getConfig(el: Element, app: RouseApp): TriggerDef[] {
 
     // Fall back to the app config or to `ready` if the config is malformed
     return wakeTriggersConfig.length === 0
-      ? [{ event: 'ready', modifiers: [] }]
+      ? [{ event: 'ready', options: {} }]
       : wakeTriggersConfig;
   }
   return wakeTriggers;

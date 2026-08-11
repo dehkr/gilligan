@@ -1,13 +1,22 @@
-import type { DirectiveSlug, TriggerDef, TriggerSubjectPair } from '../types';
+import type {
+  DirectiveSlug,
+  TriggerDef,
+  TriggerOptions,
+  TriggerSubjectPair,
+} from '../types';
 import {
+  FLAG_MODIFIERS,
   type HttpMethod,
+  isFlagModifier,
   isHttpMethod,
+  isListenTarget,
   isPatchAction,
   KEY_PREFIX,
   type PatchAction,
   STORE_PREFIX,
 } from './constants';
 import { warn } from './diagnostics';
+import { isTimeModifier } from './timing';
 
 const closers = { ')': '(', '}': '{', ']': '[' } as const;
 const openers = new Set<string>(Object.values(closers));
@@ -18,6 +27,9 @@ type BoundaryOpener = (typeof closers)[BoundaryCloser];
 
 const isCloser = (char: string): char is BoundaryCloser => Object.hasOwn(closers, char);
 const isOpener = (char: string): char is BoundaryOpener => openers.has(char);
+
+/** Trigger sources that read their wait from the modifier list. */
+const TIME_SOURCES = ['timeout', 'interval'];
 
 /**
  * Splits a directive value into `[key, value]` pairs. Pairs are comma-separated;
@@ -119,11 +131,11 @@ function parseSegment(segment: string, pairs: ParsedDirectiveValue): void {
  * parseTriggerSubjectPairs('input|debounce change: /api/users');
  * // [
  * //   {
- * //     trigger: { event: 'input', modifiers: ['debounce'] },
+ * //     trigger: { event: 'input', options: { debounce: true } },
  * //     subject: '/api/users',
  * //   },
  * //   {
- * //     trigger: { event: 'change', modifiers: [] },
+ * //     trigger: { event: 'change', options: {} },
  * //     subject: '/api/users',
  * //   },
  * // ]
@@ -143,6 +155,65 @@ export function parseTriggerSubjectPairs(
 }
 
 /**
+ * Resolves dot-separated modifier tokens into `TriggerOptions`.
+ */
+function normalizeModifiers(
+  event: string,
+  tokens: string[],
+  trigger: string,
+): TriggerOptions {
+  const options: TriggerOptions = {};
+  const keys: string[] = [];
+  const isTimeSource = TIME_SOURCES.includes(event);
+
+  let strategy: 'debounce' | 'throttle' | undefined;
+  let strategyWait: string | undefined;
+
+  for (const token of tokens) {
+    if (token.startsWith(KEY_PREFIX)) {
+      const key = token.slice(KEY_PREFIX.length).toLowerCase();
+
+      __DEV__ &&
+        !key &&
+        warn(`Empty key modifier in trigger '${trigger}'. Name a key, e.g. 'key-enter'.`);
+
+      keys.push(key === 'space' ? ' ' : key);
+    } else if (isFlagModifier(token)) {
+      options[FLAG_MODIFIERS[token]] = true;
+    } else if (isListenTarget(token)) {
+      options.listenOn = token;
+    } else if (token === 'debounce' || token === 'throttle') {
+      strategy = token;
+    } else if (token === 'leading' || token === 'trailing') {
+      options[token] = true;
+    } else if (token === 'edges') {
+      options.leading = true;
+      options.trailing = true;
+    } else if (isTimeModifier(token)) {
+      // `timeout`/`interval` take the first time value as their delay
+      if (isTimeSource && options.wait === undefined) {
+        options.wait = token;
+      } else {
+        strategyWait = token;
+      }
+    } else if (token.startsWith('(') && token.endsWith(')')) {
+      options.query = token;
+    } else {
+      __DEV__ && warn(`Unknown modifier '${token}' in trigger '${trigger}'.`);
+    }
+  }
+
+  if (keys.length > 0) {
+    options.key = keys;
+  }
+  if (strategy) {
+    options[strategy] = strategyWait ?? true;
+  }
+
+  return options;
+}
+
+/**
  * Parses a raw trigger string into trigger definitions, splitting on whitespace
  * outside quotes and boundaries. A single `|` separates the event from its
  * dot-separated modifiers. Commas are rejected; multi-trigger values are
@@ -151,9 +222,9 @@ export function parseTriggerSubjectPairs(
  * @example
  * parseTriggers('click|throttle.300ms mouseenter|once mouseleave');
  * // [
- * //   { event: 'click', modifiers: ['throttle', '300ms'] },
- * //   { event: 'mouseenter', modifiers: ['once'] },
- * //   { event: 'mouseleave', modifiers: [] },
+ * //   { event: 'click', options: { throttle: '300ms' } },
+ * //   { event: 'mouseenter', options: { once: true } },
+ * //   { event: 'mouseleave', options: {} },
  * // ]
  */
 export function parseTriggers(value: string | null | undefined): TriggerDef[] {
@@ -191,11 +262,7 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
       ? splitOnSafeDelimiter(modifierGroup, '.').filter(Boolean)
       : [];
 
-    __DEV__ &&
-      modifiers.includes(KEY_PREFIX) &&
-      warn(`Empty key modifier in trigger '${trigger}'. Name a key, e.g. 'key-enter'.`);
-
-    parsed.push({ event, modifiers });
+    parsed.push({ event, options: normalizeModifiers(event, modifiers, trigger) });
   }
 
   return parsed;
