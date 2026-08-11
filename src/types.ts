@@ -332,7 +332,7 @@ export type RenderContext = Scope & {
 /**
  * The canonical, resolved representation of a trigger's modifiers.
  *
- * The HTML grammar (`click|debounce.300ms.once`) is its serialized form, produced by
+ * The HTML grammar (`click|debounce-300ms.once`) is its serialized form, produced by
  * `parseTriggers`. Consumers read fields from this object rather than scanning tokens.
  */
 export interface TriggerOptions {
@@ -401,7 +401,7 @@ export type TriggerSubjectPair = {
   subject: string | null;
 };
 
-/** Strips trigger modifiers: `click|debounce.300ms` -> `click`. */
+/** Strips trigger modifiers: `click|debounce-300ms` -> `click`. */
 type TriggerName<S extends string> = S extends `${infer E}|${string}` ? E : S;
 
 /** Splits a whitespace-separated trigger string into a union of bare event names. */

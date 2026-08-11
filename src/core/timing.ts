@@ -33,7 +33,7 @@ export interface TimedFn<T extends AnyFn> {
 const DEFAULT_DEBOUNCE_MS = 300;
 const DEFAULT_THROTTLE_MS = 150;
 
-// Accepts an optional unit; a bare number is ms (e.g., `debounce.300`, `timeout: 5000`)
+// Accepts an optional unit; a bare number is ms (e.g., `debounce-300`, `timeout: 5000`)
 const TIME_REGEX = /^(\d*\.?\d+)(ms|s|m)?$/;
 
 /**

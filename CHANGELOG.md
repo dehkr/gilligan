@@ -24,10 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `online` -> `network-online`
   - `offline` -> `network-offline`
 - **Breaking:** Stop suppressing native anchor and form navigation for listeners attached programmatically with `app.on`/`ctx.on`.
-- **Breaking:** Separate modifiers from the event with `|` instead of `.` (e.g. `click|debounce.300ms.once`, `rz:store:sync:before|debounce.300ms`). Modifiers remain dot-separated.
-- **Breaking:** Prefix key modifiers with `key-`, matching any `KeyboardEvent.key` value (e.g. `keyup|key-arrowup`, `keydown|ctrl.key-escape`). Replaces a fixed token list, so keys no longer need to be registered to be usable.
-- **Breaking:** Remove the `edges` timing modifier. Write `leading.trailing`, which is now equivalent.
-- Allow bare numbers as timing modifiers (e.g. `click|debounce.300`). Resolves to milliseconds.
+- **Breaking:** Separate modifiers from the event with `|` instead of `.` (e.g., `click|debounce.once`). Modifiers remain dot-separated.
+- **Breaking:** Write the optional wait for debounce and throttle modifiers using a dash; `click|debounce-300ms` replaces `click|debounce.300ms`.
+- **Breaking:** Prefix key modifiers with `key-`, matching any `KeyboardEvent.key` value (e.g., `keyup|key-arrowup`, `keydown|ctrl.key-escape`). Replaces a fixed token list, so keys no longer need to be registered to be usable.
+- Allow bare numbers as timing modifiers that resolve to milliseconds (e.g., `interval|300`).
 - Update `interact` to listen on `pointerover` and `focusin` rather than `mouseover`, `focusin`, and `touchstart`.
 - Accept an object with a `handleEvent` method as the listener for `app.on`/`ctx.on`, matching `addEventListener`.
 
@@ -37,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Remove `readOnly` and `nonReactive`.
 - **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
 - **Breaking:** Remove the HTTP-method aliases on `app.fetch` and `ctx.fetch`. Pass the method in options: `fetch(url, { method: 'POST' })`.
+- **Breaking:** Remove the `edges` timing modifier. Write `leading.trailing`, which is now equivalent.
 
 ### Fixed
 

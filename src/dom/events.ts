@@ -120,7 +120,7 @@ function attachListener<D = any>(
  * DOM lookup (and work on non-element targets such as `window`).
  *
  * @example
- * ctx.on(el, 'click|debounce.500ms', handleClick);
+ * ctx.on(el, 'click|debounce-500ms', handleClick);
  * app.on('page-visible network-online', sync);
  */
 export function on<N extends string>(

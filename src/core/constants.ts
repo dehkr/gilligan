@@ -1,7 +1,5 @@
 export const STORE_PREFIX = '@';
 export const ITEM_PREFIX = '%';
-/** Marks a trigger modifier as a `KeyboardEvent.key` match: `keyup|key-enter`. */
-export const KEY_PREFIX = 'key-';
 export const KEY_BLOCKLIST = ['__proto__', 'constructor', 'prototype'];
 
 /** Carries the current render item on an `rz-render` instance context. */
@@ -93,6 +91,8 @@ export const FLAG_MODIFIERS = {
   prevent: 'prevent',
   stop: 'stop',
   'stop-immediate': 'stopImmediate',
+  leading: 'leading',
+  trailing: 'trailing',
 } as const;
 
 export type FlagModifier = keyof typeof FLAG_MODIFIERS;

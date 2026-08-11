@@ -11,7 +11,6 @@ import {
   isHttpMethod,
   isListenTarget,
   isPatchAction,
-  KEY_PREFIX,
   type PatchAction,
   STORE_PREFIX,
 } from './constants';
@@ -27,9 +26,6 @@ type BoundaryOpener = (typeof closers)[BoundaryCloser];
 
 const isCloser = (char: string): char is BoundaryCloser => Object.hasOwn(closers, char);
 const isOpener = (char: string): char is BoundaryOpener => openers.has(char);
-
-/** Trigger sources that read their wait from the modifier list. */
-const TIME_SOURCES = ['timeout', 'interval'];
 
 /**
  * Splits a directive value into `[key, value]` pairs. Pairs are comma-separated;
@@ -155,44 +151,36 @@ export function parseTriggerSubjectPairs(
 }
 
 /**
- * Resolves dot-separated modifier tokens into `TriggerOptions`.
+ * Resolves dot-separated modifier tokens into `TriggerOptions`. A `name-value`
+ * token binds a value to that modifier; a bare value is an argument to the event.
  */
-function normalizeModifiers(
-  event: string,
-  tokens: string[],
-  trigger: string,
-): TriggerOptions {
+function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
   const options: TriggerOptions = {};
   const keys: string[] = [];
-  const isTimeSource = TIME_SOURCES.includes(event);
-
-  let strategy: 'debounce' | 'throttle' | undefined;
-  let strategyWait: string | undefined;
 
   for (const token of tokens) {
-    if (token.startsWith(KEY_PREFIX)) {
-      const key = token.slice(KEY_PREFIX.length).toLowerCase();
+    // Exact matches are tested first, so a hyphenated modifier name like
+    // `stop-immediate` isn't processed as a [name]-[value] pair.
+    const dash = token.indexOf('-');
+    const name = dash > 0 ? token.slice(0, dash) : '';
+    const value = dash > 0 ? token.slice(dash + 1) : '';
 
-      __DEV__ &&
-        !key &&
-        warn(`Empty key modifier in trigger '${trigger}'. Name a key, e.g. 'key-enter'.`);
-
-      keys.push(key === 'space' ? ' ' : key);
-    } else if (isFlagModifier(token)) {
+    if (isFlagModifier(token)) {
       options[FLAG_MODIFIERS[token]] = true;
     } else if (isListenTarget(token)) {
       options.listenOn = token;
     } else if (token === 'debounce' || token === 'throttle') {
-      strategy = token;
-    } else if (token === 'leading' || token === 'trailing') {
       options[token] = true;
+    } else if (name === 'key') {
+      __DEV__ &&
+        !value &&
+        warn(`Empty key modifier in trigger '${trigger}'. Name a key, e.g. 'key-enter'.`);
+      const key = value.toLowerCase();
+      keys.push(key === 'space' ? ' ' : key);
+    } else if (name === 'debounce' || name === 'throttle') {
+      options[name] = value || true;
     } else if (isTimeModifier(token)) {
-      // `timeout`/`interval` take the first time value as their delay
-      if (isTimeSource && options.wait === undefined) {
-        options.wait = token;
-      } else {
-        strategyWait = token;
-      }
+      options.wait = token;
     } else if (token.startsWith('(') && token.endsWith(')')) {
       options.query = token;
     } else {
@@ -203,9 +191,6 @@ function normalizeModifiers(
   if (keys.length > 0) {
     options.key = keys;
   }
-  if (strategy) {
-    options[strategy] = strategyWait ?? true;
-  }
 
   return options;
 }
@@ -213,11 +198,12 @@ function normalizeModifiers(
 /**
  * Parses a raw trigger string into trigger definitions, splitting on whitespace
  * outside quotes and boundaries. A single `|` separates the event from its
- * dot-separated modifiers. Commas are rejected; multi-trigger values are
+ * dot-separated modifiers, each of which takes a value with a dash
+ * (`debounce-300ms`). Commas are rejected; multi-trigger values are
  * space-separated.
  *
  * @example
- * parseTriggers('click|throttle.300ms mouseenter|once mouseleave');
+ * parseTriggers('click|throttle-300ms mouseenter|once mouseleave');
  * // [
  * //   { event: 'click', options: { throttle: '300ms' } },
  * //   { event: 'mouseenter', options: { once: true } },
@@ -259,7 +245,7 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
       ? splitOnSafeDelimiter(modifierGroup, '.').filter(Boolean)
       : [];
 
-    parsed.push({ event, options: normalizeModifiers(event, modifiers, trigger) });
+    parsed.push({ event, options: normalizeModifiers(modifiers, trigger) });
   }
 
   return parsed;
