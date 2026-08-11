@@ -151,9 +151,10 @@ export function parseTriggerSubjectPairs(
 }
 
 /**
- * Resolves dot-separated modifier tokens into `TriggerOptions`. A bare name is
- * a flag (`once`); a `name-value` token binds a value to that modifier
- * (`debounce-300ms`); a bare value is an argument to the event (`30s`).
+ * Resolves dot-separated modifier tokens into `TriggerOptions`. A bare name is a
+ * flag (`once`); a `name-value` token binds a value to that modifier
+ * (`debounce-300ms`, `key-enter`); a bare time or `(query)` value is an argument
+ * to the event (`interval|30s`).
  */
 function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
   const options: TriggerOptions = {};
