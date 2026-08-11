@@ -186,9 +186,6 @@ function normalizeModifiers(
       strategy = token;
     } else if (token === 'leading' || token === 'trailing') {
       options[token] = true;
-    } else if (token === 'edges') {
-      options.leading = true;
-      options.trailing = true;
     } else if (isTimeModifier(token)) {
       // `timeout`/`interval` take the first time value as their delay
       if (isTimeSource && options.wait === undefined) {
