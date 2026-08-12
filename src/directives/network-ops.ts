@@ -11,7 +11,7 @@ import { getPathRoot } from '../core/path';
 import { resolveTarget } from '../core/store';
 import { applyTiming } from '../core/timing';
 import { dispatchTrigger, isNativeNavigation } from '../dom/events';
-import { handleFetch } from '../net/fetch-engine';
+import { runFetch } from '../net/fetch-engine';
 import { resolveRequestConfig } from '../net/request';
 import type {
   DirectiveSlug,
@@ -152,7 +152,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
             );
           return;
         }
-        handleFetch(el, app, opts);
+        runFetch(el, app, opts);
       },
     });
 

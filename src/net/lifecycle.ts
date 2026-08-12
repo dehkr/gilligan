@@ -18,7 +18,7 @@ const REQUEST_CLASS = 'rouse-request';
 /** Per-element ref counts, so overlapping requests don't clear each other's class. */
 const inFlight = new WeakMap<Element, number>();
 
-interface LifecycleHandle {
+export interface LifecycleHandle {
   settle: (result: RouseResponse) => void;
 }
 

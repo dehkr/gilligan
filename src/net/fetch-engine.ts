@@ -6,177 +6,196 @@ import { resolveStoreUrl } from '../core/store';
 import { dispatch } from '../dom/events';
 import { extractFieldValues } from '../dom/forms';
 import type { RouseRequest, RouseResponse } from '../types';
-import { PREVENTED, runRequestLifecycle } from './lifecycle';
+import { type LifecycleHandle, PREVENTED, runRequestLifecycle } from './lifecycle';
 import { request, resolveRequestConfig } from './request';
 import { fallbackResponse, isFileType, isJsonType } from './response';
 
 const abortKeys = new WeakMap<Element, string>();
 
 /**
- * Handles the preparation, pacing, and execution of a network request.
+ * Runs a fetch from an element. Resolves the URL and merged request config,
+ * drives the `rz:fetch:*` lifecycle, and routes the response payload. Never
+ * throws — a failure comes back as a `RouseResponse` carrying an error.
  */
-export async function handleFetch(
+export async function runFetch(
   el: Element,
   app: RouseApp,
-  programmaticOpts: RouseRequest = {},
+  options: RouseRequest,
 ): Promise<RouseResponse> {
   try {
-    return await executeFetch(el, app, programmaticOpts);
+    // A debounced or queued trigger can fire after the element is gone
+    if (!el.isConnected) {
+      abortKeys.delete(el);
+      return fallbackResponse(options, 'Element disconnected from DOM');
+    }
+
+    // Bail out if disabled
+    if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') {
+      return fallbackResponse(options, 'Element is disabled');
+    }
+
+    const url = resolveUrl(el, options, app);
+    if (!url) {
+      return fallbackResponse(
+        options,
+        'Invalid or missing URL for the fetch request.',
+        'INTERNAL_ERROR',
+      );
+    }
+
+    const finalRequestInit = resolveRequestConfig(el, 'fetch', app);
+    const isFormEl = el instanceof HTMLFormElement;
+    const formMethod = isFormEl ? el.getAttribute('method') : undefined;
+
+    const method = (
+      options.method || // rz-fetch
+      finalRequestInit.method || // rz-request / rz-fetch-request
+      formMethod || // form native attribute
+      'GET'
+    ).toUpperCase();
+
+    const hasExplicitBody =
+      finalRequestInit.body !== undefined || options.body !== undefined;
+
+    // Process standalone inputs to build the body or modify URL
+    if (!hasExplicitBody) {
+      extractFieldValues(el, method, finalRequestInit);
+    }
+
+    // Final unified config object
+    const finalOptions: RouseRequest = {
+      ...finalRequestInit,
+      ...options,
+      method,
+      abortKey: options.abortKey || finalRequestInit.abortKey || getAbortKey(el),
+      form: !hasExplicitBody && isFormEl ? el : undefined,
+    };
+
+    const outcome = await runRequestLifecycle({
+      el,
+      root: app.root,
+      prefix: 'rz:fetch',
+      config: finalOptions,
+      configDetail: { config: finalOptions, url, method },
+      lifecycleDetail: { config: finalOptions },
+      terminalDetail: (result) => result,
+      run: (handle) => sendAndRoute(el, url, finalOptions, app, handle),
+    });
+
+    return outcome === PREVENTED
+      ? fallbackResponse(finalOptions, 'Prevented by rz:fetch:config listener')
+      : outcome;
   } catch (error: any) {
     __DEV__ && err(`Error executing fetch on element:`, el, error);
 
-    return fallbackResponse(
-      programmaticOpts,
-      error.message || 'Internal error',
-      'INTERNAL_ERROR',
-    );
+    return fallbackResponse(options, error.message || 'Internal error', 'INTERNAL_ERROR');
   }
 }
 
 /**
- * Handles the complete lifecycle of a network request once timing
- * conditions (throttle/debounce) have been satisfied.
- *
- * @param el - The DOM element triggering the network request.
- * @param options - The sanitized request config passed to the network orchestrator.
+ * Sends the request and routes what comes back: server-directed redirects and
+ * URL changes first, then the payload to its typed sub-event.
  */
-async function executeFetch(el: Element, app: RouseApp, options: RouseRequest) {
-  const isFormEl = el instanceof HTMLFormElement;
+async function sendAndRoute(
+  el: Element,
+  url: string,
+  options: RouseRequest,
+  app: RouseApp,
+  handle: LifecycleHandle,
+): Promise<RouseResponse> {
+  try {
+    const result = await request(url, options, app);
+    const rouseHeaders = extractRouseHeaders(result.headers);
 
-  // If the element is removed while the network request is actively in the air
-  if (!el.isConnected) {
-    abortKeys.delete(el);
-    return fallbackResponse(options, 'Element disconnected from DOM');
-  }
+    if (rouseHeaders.redirect) {
+      followRedirect(el, rouseHeaders.redirect);
+      return result;
+    }
 
-  // Bail out if disabled
-  if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') {
-    return fallbackResponse(options, 'Element is disabled');
-  }
+    // Native browser-followed redirect (e.g., expired session -> login page).
+    // Server intent via Rouse-Redirect wins. Falls through to the redirected
+    // short-circuit in the error block below.
+    if (result.response?.redirected) {
+      if (isSameOrigin(result.response.url)) {
+        followRedirect(el, result.response.url);
+        return result;
+      }
+      __DEV__ && warn(`Cross-origin redirect blocked: '${result.response.url}'.`);
+      result.error = {
+        message: 'Cross-origin redirect blocked',
+        status: 'REDIRECTED',
+      };
+    }
 
-  let url = options.url || null;
-  if (url) {
-    url = resolveStoreUrl(url, app.stores);
+    applyUrlChange(rouseHeaders.pushUrl, rouseHeaders.replaceUrl);
+
+    if (rouseHeaders.target) {
+      result.targetOverride = rouseHeaders.target;
+    }
+
+    handle.settle(result);
+
+    if (result.error) {
+      const s = result.error.status;
+      if (s !== 'CANCELED' && s !== 'REDIRECTED' && result.response) {
+        routePayload(el, result, 'error');
+      }
+      return result;
+    }
+    if (result.response) {
+      routePayload(el, result, 'success');
+    }
+    return result;
+  } catch (error: any) {
+    const fallback = fallbackResponse(
+      options,
+      error.message || 'Internal Error',
+      'INTERNAL_ERROR',
+    );
+    handle.settle(fallback);
+    return fallback;
   }
+}
+
+/**
+ * Resolves the request URL from the options, expanding an `@store` reference.
+ * Warns against `el` and returns `null` when there is no URL to resolve.
+ */
+function resolveUrl(el: Element, options: RouseRequest, app: RouseApp): string | null {
+  const url = options.url ? resolveStoreUrl(options.url, app.stores) : null;
 
   if (!url) {
     __DEV__ && warn('Invalid or missing URL for the fetch request.', el);
-    return fallbackResponse(
-      options,
-      'Invalid or missing URL for the fetch request.',
-      'INTERNAL_ERROR',
-    );
+    return null;
   }
 
-  const finalRequestInit = resolveRequestConfig(el, 'fetch', app);
-  const formMethod = isFormEl ? el.getAttribute('method') : undefined;
+  return url;
+}
 
-  const method = (
-    options.method || // rz-fetch
-    finalRequestInit.method || // rz-request / rz-fetch-request
-    formMethod || // form native attribute
-    'GET'
-  ).toUpperCase();
-
-  const hasExplicitBody =
-    finalRequestInit.body !== undefined || options.body !== undefined;
-
-  // Process standalone inputs to build the body or modify URL
-  if (!hasExplicitBody) {
-    extractFieldValues(el, method, finalRequestInit);
-  }
-
-  // Auto-generate an abort key if one isn't provided to guarantee
-  // an element can never have conflicting requests.
-  let autoAbortKey = abortKeys.get(el);
-  if (!autoAbortKey) {
-    autoAbortKey = createKey('rz_abort_');
-    abortKeys.set(el, autoAbortKey);
-  }
-
-  // Final unified config object
-  const finalOptions: RouseRequest = {
-    ...finalRequestInit,
-    ...options,
-    method,
-    abortKey: options.abortKey || finalRequestInit.abortKey || autoAbortKey,
-    form: !hasExplicitBody && isFormEl ? el : undefined,
-  };
-
-  const outcome = await runRequestLifecycle({
-    el,
-    root: app.root,
-    prefix: 'rz:fetch',
-    config: finalOptions,
-    configDetail: { config: finalOptions, url, method },
-    lifecycleDetail: { config: finalOptions },
-    terminalDetail: (result) => result,
-    run: async (handle) => {
-      try {
-        const result = await request(url, finalOptions, app);
-        const rouseHeaders = extractRouseHeaders(result.headers);
-
-        if (rouseHeaders.redirect) {
-          abortKeys.delete(el);
-          window.location.assign(rouseHeaders.redirect);
-          return result;
-        }
-
-        // Native browser-followed redirect (e.g., expired session -> login page).
-        // Server intent via Rouse-Redirect wins. Falls through to the redirected
-        // short-circuit in the error block below.
-        if (result.response?.redirected) {
-          if (isSameOrigin(result.response.url)) {
-            abortKeys.delete(el);
-            window.location.assign(result.response.url);
-            return result;
-          }
-          __DEV__ && warn(`Cross-origin redirect blocked: '${result.response.url}'.`);
-          result.error = {
-            message: 'Cross-origin redirect blocked',
-            status: 'REDIRECTED',
-          };
-        }
-
-        applyUrlChange(rouseHeaders.pushUrl, rouseHeaders.replaceUrl);
-
-        if (rouseHeaders.target) {
-          result.targetOverride = rouseHeaders.target;
-        }
-
-        handle.settle(result);
-
-        if (result.error) {
-          const s = result.error.status;
-          if (s !== 'CANCELED' && s !== 'REDIRECTED' && result.response) {
-            routePayload(el, result, 'error');
-          }
-          return result;
-        }
-        if (result.response) {
-          routePayload(el, result, 'success');
-        }
-        return result;
-      } catch (error: any) {
-        const fallback = fallbackResponse(
-          finalOptions,
-          error.message || 'Internal Error',
-          'INTERNAL_ERROR',
-        );
-        handle.settle(fallback);
-        return fallback;
-      }
-    },
-  });
-
-  return outcome === PREVENTED
-    ? fallbackResponse(finalOptions, 'Prevented by rz:fetch:config listener')
-    : outcome;
+/** Navigates to a server-directed redirect target. */
+function followRedirect(el: Element, url: string): void {
+  abortKeys.delete(el);
+  window.location.assign(url);
 }
 
 /**
- * Dispatches the typed success sub-events (`:file` / `:json` / `:html`)
- * that drive JSON and HTML payload routing.
+ * Returns the element's abort key, generating one on first use so an element can
+ * never have conflicting requests in the air.
+ */
+function getAbortKey(el: Element): string {
+  let key = abortKeys.get(el);
+
+  if (!key) {
+    key = createKey('rz_abort_');
+    abortKeys.set(el, key);
+  }
+
+  return key;
+}
+
+/**
+ * Dispatches the typed payload sub-event (`:file` / `:json` / `:html`) under the
+ * given `rz:fetch:{success,error}` prefix, driving JSON and HTML routing.
  */
 function routePayload(el: Element, result: RouseResponse, type: 'success' | 'error') {
   const data = result.data;
@@ -257,6 +276,10 @@ function applyUrlChange(pushUrl: string | null, replaceUrl: string | null): void
   }
 }
 
+/**
+ * Resolves `url` against the document and compares origins. Malformed URLs
+ * are not same-origin.
+ */
 function isSameOrigin(url: string): boolean {
   try {
     return new URL(url, window.location.href).origin === window.location.origin;

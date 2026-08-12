@@ -23,7 +23,7 @@ import { initObserver } from '../dom/observer';
 import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
 import { initDomRouter } from '../dom/swapper';
-import { handleFetch } from '../net/fetch-engine';
+import { runFetch } from '../net/fetch-engine';
 import { fallbackResponse } from '../net/response';
 import type {
   BoundOn,
@@ -324,7 +324,7 @@ export class RouseApp {
       return fallbackResponse(config, 'Target element not found', 'INTERNAL_ERROR');
     }
 
-    return handleFetch(el, this, config);
+    return runFetch(el, this, config);
   }
 
   /**
