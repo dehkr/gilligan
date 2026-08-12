@@ -1,5 +1,5 @@
 import { dispatch } from '../dom/events';
-import { runRequestLifecycle } from '../net/lifecycle';
+import { type LifecycleHandle, runRequestLifecycle } from '../net/lifecycle';
 import { request } from '../net/request';
 import { reactive, seedPropagation, trackDirty } from '../reactivity/reactive';
 import type {
@@ -225,7 +225,7 @@ export class StoreManager {
     const entry = this._getStore(storeName);
     if (!entry) return;
 
-    const { data, status, config } = entry;
+    const { data, config } = entry;
     const overrides = manualConfig?.overrides ?? {};
 
     const rawUrl = manualConfig?.url || overrides.url || config?.url;
@@ -245,6 +245,11 @@ export class StoreManager {
       ...overrides,
       method,
       abortKey: overrides.abortKey ?? `${operation}_${storeName}`,
+      rollbackOnError:
+        manualConfig?.rollbackOnError ??
+        overrides.rollbackOnError ??
+        config?.rollbackOnError ??
+        false,
     };
 
     // Body for push: full data, or a nested slice if nestedPath is provided
@@ -262,65 +267,61 @@ export class StoreManager {
       root: this.app.root,
       prefix: operation === 'push' ? 'rz:push' : 'rz:pull',
       config: requestOptions,
-      configDetail: {
-        storeName,
-        config: requestOptions,
-        url,
-        method,
-      },
-      lifecycleDetail: {
-        storeName,
-        config: requestOptions,
-      },
+      configDetail: { storeName, config: requestOptions, url, method },
+      lifecycleDetail: { storeName, config: requestOptions },
       terminalDetail: (result) => ({
         storeName,
         result,
       }),
-      run: async (handle) => {
-        const reqToken = Symbol('rz.request');
-        entry.activeReq = reqToken;
-
-        const snapshot = clone(data);
-        status.loading = operation;
-        status.error = null;
-
-        try {
-          const result = await request(url, requestOptions, this.app);
-          handle.settle(result);
-
-          if (result.error) {
-            if (result.error.status === 'CANCELED') {
-              return result;
-            }
-
-            status.error = result.error.message;
-
-            const rollbackOnError =
-              manualConfig?.rollbackOnError ??
-              requestOptions.rollbackOnError ??
-              config?.rollbackOnError ??
-              false;
-
-            if (operation === 'push' && rollbackOnError) {
-              this._maybeRollback(
-                entry,
-                snapshot,
-                manualConfig?.nestedPath,
-                result.error,
-              );
-            }
-            return result;
-          }
-          this._applyServerResponse(entry, operation, result, snapshot, manualConfig);
-          return result;
-        } finally {
-          if (entry.activeReq === reqToken) {
-            status.loading = false;
-            entry.activeReq = undefined;
-          }
-        }
-      },
+      run: (handle) =>
+        this._sendAndApply(entry, operation, url, requestOptions, handle, manualConfig),
     });
+  }
+
+  /**
+   * Sends the request and applies the outcome to the store: rolls back a failed
+   * push when configured, otherwise reconciles the response. Tracks the request so
+   * a superseded one leaves `loading` alone when it settles.
+   */
+  private async _sendAndApply(
+    entry: StoreEntry,
+    operation: 'push' | 'pull',
+    url: string,
+    requestOptions: RouseRequest,
+    handle: LifecycleHandle,
+    manualConfig?: StoreRequestOptions,
+  ): Promise<RouseResponse> {
+    const { data, status } = entry;
+
+    const reqToken = Symbol('rz.request');
+    entry.activeReq = reqToken;
+
+    const snapshot = clone(data);
+    status.loading = operation;
+    status.error = null;
+
+    try {
+      const result = await request(url, requestOptions, this.app);
+      handle.settle(result);
+
+      if (result.error) {
+        if (result.error.status === 'CANCELED') return result;
+
+        status.error = result.error.message;
+
+        if (operation === 'push' && requestOptions.rollbackOnError) {
+          this._maybeRollback(entry, snapshot, manualConfig?.nestedPath, result.error);
+        }
+        return result;
+      }
+      this._applyServerResponse(entry, operation, result, snapshot, manualConfig);
+      return result;
+    } finally {
+      if (entry.activeReq === reqToken) {
+        status.loading = false;
+        entry.activeReq = undefined;
+      }
+    }
   }
 
   /**
