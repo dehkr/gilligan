@@ -387,33 +387,9 @@ export class StoreManager {
     if (payload && typeof payload === 'object') {
       const localSlice = sliceAt(data, nestedPath);
       const snapSlice = sliceAt(snapshot, nestedPath);
-      const isMutating = !deepEqual(localSlice, snapSlice);
 
-      // Apply server update if local state is not being mutated during request
-      if (!isMutating) {
-        if (nestedPath) {
-          const incoming = getNestedVal(payload, nestedPath);
-          if (incoming !== undefined) {
-            this._withPatchGuard(() => {
-              const target = getNestedVal(data, nestedPath);
-              if (
-                action === 'merge' &&
-                target &&
-                typeof target === 'object' &&
-                incoming &&
-                typeof incoming === 'object'
-              ) {
-                patchState(target, incoming, 'merge');
-              } else {
-                setNestedVal(data, nestedPath, incoming);
-              }
-            });
-          }
-        } else {
-          this._withPatchGuard(() => patchState(data, payload, action));
-        }
-      } else {
-        // Local state moved mid-flight; keep the edit and skip the echo
+      // Local state moved mid-flight; keep the edit and skip the echo
+      if (!deepEqual(localSlice, snapSlice)) {
         this._dispatchSyncEvent(entry, 'rz:store:sync:skipped', {
           storeName,
           operation,
@@ -425,6 +401,8 @@ export class StoreManager {
         });
         return;
       }
+
+      this._patchPayload(data, payload, action, nestedPath);
     }
 
     if (operation === 'pull') {
@@ -441,6 +419,41 @@ export class StoreManager {
       payload,
       nestedPath,
       action,
+    });
+  }
+
+  /**
+   * Writes the payload into the store, whole or at `nestedPath`. Merging needs an
+   * object on both sides; anything else replaces. A nested path missing from the
+   * payload writes nothing.
+   */
+  private _patchPayload(
+    data: any,
+    payload: any,
+    action: PatchAction,
+    nestedPath?: string,
+  ) {
+    if (!nestedPath) {
+      this._withPatchGuard(() => patchState(data, payload, action));
+      return;
+    }
+
+    const incoming = getNestedVal(payload, nestedPath);
+    if (incoming === undefined) return;
+
+    this._withPatchGuard(() => {
+      const target = getNestedVal(data, nestedPath);
+      if (
+        action === 'merge' &&
+        target &&
+        typeof target === 'object' &&
+        incoming &&
+        typeof incoming === 'object'
+      ) {
+        patchState(target, incoming, 'merge');
+      } else {
+        setNestedVal(data, nestedPath, incoming);
+      }
     });
   }
 
