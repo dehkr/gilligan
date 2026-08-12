@@ -274,6 +274,9 @@ export interface LifecycleEventMap {
 /** Union of every lifecycle event name the framework can dispatch. */
 export type LifecycleEvent = keyof LifecycleEventMap;
 
+/** The `rz:store:sync*` subset, dispatched by `StoreManager`. */
+export type StoreSyncEvent = Extract<LifecycleEvent, `rz:store:sync${string}`>;
+
 /** Any value that a reactive directive can bind to. Objects are used for conditional class/style maps; primitives for direct output. */
 export type BindableValue =
   | string

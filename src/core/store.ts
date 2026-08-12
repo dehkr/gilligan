@@ -4,13 +4,10 @@ import { request } from '../net/request';
 import { reactive, seedPropagation, trackDirty } from '../reactivity/reactive';
 import type {
   DirectiveSlug,
-  LifecycleEvent,
+  LifecycleEventMap,
   RouseRequest,
   RouseResponse,
-  StoreSyncBeforeDetail,
-  StoreSyncDetail,
-  StoreSyncRollbackDetail,
-  StoreSyncSkippedDetail,
+  StoreSyncEvent,
   VoidFn,
 } from '../types';
 import type { RouseApp } from './app';
@@ -200,18 +197,17 @@ export class StoreManager {
     entry.lastGood = clone(data);
   }
 
-  private _dispatchSyncEvent(
+  private _dispatchSyncEvent<E extends StoreSyncEvent>(
     entry: StoreEntry,
-    eventName: LifecycleEvent,
-    detail:
-      | StoreSyncBeforeDetail
-      | StoreSyncDetail
-      | StoreSyncRollbackDetail
-      | StoreSyncSkippedDetail,
+    eventName: E,
+    detail: LifecycleEventMap[E],
     options?: CustomEventInit,
-  ) {
+  ): CustomEvent<LifecycleEventMap[E]> {
     const target = entry.el || this.app.root;
-    return dispatch(target, eventName, detail, options);
+
+    return dispatch(target, eventName, detail as any, options) as CustomEvent<
+      LifecycleEventMap[E]
+    >;
   }
 
   /**
@@ -379,7 +375,7 @@ export class StoreManager {
     if (beforeEvent.defaultPrevented) return;
 
     // Whole `result.data`, mutable by listeners (matches the router's deposit path)
-    const payload = (beforeEvent.detail as StoreSyncBeforeDetail).payload;
+    const payload = beforeEvent.detail.payload;
 
     // Reconcile the response body into the store. On push, how server-owned fields
     // (assigned id, computed/normalized values) return to the client. On pull, the
