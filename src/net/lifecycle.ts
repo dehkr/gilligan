@@ -61,18 +61,15 @@ export async function runRequestLifecycle(
   const { el, root, prefix, config, configDetail, lifecycleDetail, terminalDetail, run } =
     opts;
 
-  const emit = (event: string, detail: unknown, options?: CustomEventInit) =>
-    dispatch(el, event, detail, options);
-
-  const configEvent = emit(`${prefix}:config`, configDetail, { cancelable: true });
-  if (configEvent.defaultPrevented) {
-    return PREVENTED;
-  }
+  const configEvent = dispatch(el, `${prefix}:config`, configDetail, {
+    cancelable: true,
+  });
+  if (configEvent.defaultPrevented) return PREVENTED;
 
   const indicators = resolveIndicators(el, root, config.indicator);
   mark(indicators);
 
-  emit(`${prefix}:start`, lifecycleDetail);
+  dispatch(el, `${prefix}:start`, lifecycleDetail);
 
   let settled = false;
 
@@ -92,20 +89,20 @@ export async function runRequestLifecycle(
     settled = true;
 
     if (result.error?.status === 'CANCELED') {
-      emit(`${prefix}:abort`, lifecycleDetail);
+      dispatch(el, `${prefix}:abort`, lifecycleDetail);
       return;
     }
 
     if (result.error) {
-      emit(`${prefix}:error`, terminalDetail(result));
+      dispatch(el, `${prefix}:error`, terminalDetail(result));
       return;
     }
 
-    emit(`${prefix}:success`, terminalDetail(result));
+    dispatch(el, `${prefix}:success`, terminalDetail(result));
 
     const trigger = result.headers?.['rouse-trigger'];
     if (trigger) {
-      emit(trigger, result);
+      dispatch(el, trigger, result);
     }
   };
 
@@ -113,7 +110,7 @@ export async function runRequestLifecycle(
     return await run({ settle });
   } finally {
     unmark(indicators);
-    emit(`${prefix}:end`, lifecycleDetail);
+    dispatch(el, `${prefix}:end`, lifecycleDetail);
   }
 }
 
