@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+No unreleased changes.
+
+## [0.12.0] - 2026-08-13
+
 ### Added
 
 - Add `development` and `production` export conditions, so bundlers that set them (Vite, webpack) resolve to the development build while developing and the minified one when building.
