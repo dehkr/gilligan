@@ -12,7 +12,7 @@ export const PREVENTED = Symbol('rz.prevented');
 
 const REQUEST_CLASS = 'rouse-request';
 
-/** Per-element ref counts, so overlapping requests don't clear each other's class. */
+/** In-flight request count per indicator element. */
 const inFlight = new WeakMap<Element, number>();
 
 export interface LifecycleHandle {
@@ -64,7 +64,7 @@ export async function runRequestLifecycle(
   // Resolved after the `:config` gate so listeners can retarget `indicator`
   const indicators = resolveIndicators(el, root, configDetail.config.indicator);
 
-  mark(indicators);
+  trackInFlight(indicators, 1);
 
   dispatch(el, `${prefix}:start`, lifecycleDetail);
 
@@ -106,7 +106,7 @@ export async function runRequestLifecycle(
   try {
     return await run({ settle });
   } finally {
-    unmark(indicators);
+    trackInFlight(indicators, -1);
     dispatch(el, `${prefix}:end`, lifecycleDetail);
   }
 }
@@ -128,26 +128,14 @@ function resolveIndicators(
   return els;
 }
 
-/** Adds the request class on each element's first in-flight request. */
-function mark(els: Element[]) {
+/**
+ * Tracks in-flight requests per indicator element (`1` on start and `-1` on settle) so
+ * overlapping requests sharing an indicator don't clear each other's request class.
+ */
+function trackInFlight(els: Element[], delta: 1 | -1) {
   for (const el of els) {
-    const n = (inFlight.get(el) ?? 0) + 1;
+    const n = Math.max(0, (inFlight.get(el) ?? 0) + delta);
     inFlight.set(el, n);
-    if (n === 1) {
-      el.classList.add(REQUEST_CLASS);
-    }
-  }
-}
-
-/** Removes the request class once an element's last in-flight request settles. */
-function unmark(els: Element[]) {
-  for (const el of els) {
-    const n = (inFlight.get(el) ?? 1) - 1;
-    if (n > 0) {
-      inFlight.set(el, n);
-      continue;
-    }
-    inFlight.delete(el);
-    el.classList.remove(REQUEST_CLASS);
+    el.classList.toggle(REQUEST_CLASS, n > 0);
   }
 }
