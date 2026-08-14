@@ -284,7 +284,7 @@ export class StoreManager {
   ): Promise<RouseResponse> {
     const { data, status } = entry;
 
-    const reqToken = Symbol('rz.request');
+    const reqToken = Symbol(__DEV__ ? 'rz.request' : '');
     entry.activeReq = reqToken;
 
     const snapshot = clone(data);

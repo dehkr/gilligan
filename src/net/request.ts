@@ -100,7 +100,7 @@ export async function request<T = any>(
   if (abortKey) {
     abortRegistry.get(abortKey)?.controller.abort('Replacement request started');
     const controller = new AbortController();
-    ownerId = Symbol('rz.abortOwner');
+    ownerId = Symbol(__DEV__ ? 'rz.abortOwner' : '');
     abortRegistry.set(abortKey, { controller, ownerId });
     mainSignal = controller.signal;
   } else if (externalSignal) {

@@ -8,7 +8,7 @@ import type {
   RouseResponse,
 } from '../types';
 
-export const PREVENTED = Symbol('rz.prevented');
+export const PREVENTED = Symbol(__DEV__ ? 'rz.prevented' : '');
 
 const REQUEST_CLASS = 'rouse-request';
 

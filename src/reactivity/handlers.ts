@@ -9,7 +9,7 @@ import {
   untracked,
 } from './reactive';
 
-export const ITERATION_KEY = Symbol('rz.iteration');
+export const ITERATION_KEY = Symbol(__DEV__ ? 'rz.iteration' : '');
 
 const signalCache = new WeakMap<object, Map<string | symbol, any>>();
 const computedCache = new WeakMap<object, Map<string | symbol, () => any>>();
