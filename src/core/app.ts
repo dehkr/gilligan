@@ -24,7 +24,6 @@ import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
 import { initDomRouter } from '../dom/swapper';
 import { runFetch } from '../net/fetch-engine';
-import { fallbackResponse } from '../net/response';
 import type {
   BoundOn,
   ErrorInterceptor,
@@ -37,7 +36,7 @@ import type {
   VoidFn,
 } from '../types';
 import { queryTargets } from './attributes';
-import { err, fail, info, warn } from './diagnostics';
+import { fail, info, warn } from './diagnostics';
 import { ScopeRegistry } from './scope-registry';
 import { StoreManager, type SyncConfig } from './store';
 
@@ -107,7 +106,32 @@ export class RouseApp {
   public stores: StoreManager;
   public registry: ScopeRegistry;
   public isReady: boolean;
+
+  /**
+   * Makes a network request using the app's configuration. Registered interceptors,
+   * default headers, and credentials all apply, and a relative URL is resolved against
+   * the configured `baseUrl`.
+   *
+   * Always resolves to a `RouseResponse`, on failure as well as success, so check `error`
+   * instead of catching. The body arrives on `data`, parsed by content type: an object or
+   * array for JSON, a string for HTML, text, and XML, and a `Blob` for anything else.
+   *
+   * A response isn't placed in the page unless something names a destination. Pass
+   * `triggerEl` to attribute the request to an element, which applies that element's
+   * `rz-request` config, fires the `rz:fetch:*` events from it, and routes the response
+   * through its `rz-target`: HTML into the DOM, JSON into a store. A server `Rouse-Target`
+   * routes either way. Otherwise the response is handled by the caller; the exported `swap`
+   * helper can be used to place HTML manually.
+   *
+   * @param resource - The URL to request, absolute or relative to `baseUrl`.
+   * @param options - Request options such as `method`, `body`, `params`, `headers`, and `abortKey`, plus `triggerEl`.
+   * @returns The response, carrying parsed `data` on success or a populated `error` on failure.
+   *
+   * @example
+   * const { data, error } = await app.fetch('/api/user');
+   */
   public fetch: RouseFetch;
+
   /**
    * Adds an event listener that is auto-removed when the app is destroyed. Listens
    * on `app.root` unless an `EventTarget` is passed first. Modifiers, filters, and
@@ -123,6 +147,7 @@ export class RouseApp {
    * app.on(window, ['online', 'offline'], sync);
    */
   public on: BoundOn;
+
   public _interceptors: {
     request: Set<RequestInterceptor>;
     response: Set<ResponseInterceptor>;
@@ -298,33 +323,15 @@ export class RouseApp {
   }
 
   /**
-   * Triggers a Rouse network request.
+   * Triggers a Rouse network request. `options.triggerEl` marks an originating
+   * element; without one nothing is read from the DOM and the `rz:fetch:*`
+   * events fire from the app root.
    *
-   * @param resource - The URL to fetch.
-   * @param options - Network configuration, including the DOM `target`.
+   * @param url - The URL to fetch.
+   * @param options - Network configuration. `triggerEl` marks an originating element.
    */
-  private async _fetch(resource: string, options: RouseRequest = {}) {
-    const targetRef = options.target || this.root;
-    let el: Element | null = null;
-
-    if (typeof targetRef === 'string') {
-      try {
-        el = document.querySelector<HTMLElement>(targetRef);
-      } catch {
-        // Fails gracefully on invalid selector
-      }
-    } else {
-      el = targetRef;
-    }
-
-    const config = { ...options, url: resource };
-
-    if (!el) {
-      __DEV__ && err(`Fetch failed. Target element not found.`, targetRef);
-      return fallbackResponse(config, 'Target element not found', 'INTERNAL_ERROR');
-    }
-
-    return runFetch(el, this, config);
+  private async _fetch(url: string, options: RouseRequest = {}) {
+    return runFetch(this, { ...options, url });
   }
 
   /**

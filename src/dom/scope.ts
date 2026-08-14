@@ -4,7 +4,7 @@ import { STORE_PREFIX } from '../core/constants';
 import { fail, warn } from '../core/diagnostics';
 import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
-import type { RouseFetch, ScopeCtx, ScopeSetup, VoidFn } from '../types';
+import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
 import { attachWakeStrategies, createBoundOn, dispatch } from './events';
 
@@ -128,17 +128,6 @@ function createScope(
     [...cleanups].reverse().forEach((fn) => fn());
   };
 
-  // Inject abort signal to avoid background request if scope is destroyed.
-  // User can override by adding `signal: undefined`. `keepalive: true` lets a
-  // request finish even if the tab closes.
-  const scopedFetch: RouseFetch = (resource, options = {}) =>
-    app.fetch(resource, {
-      target: el,
-      signal: abortCtrl.signal,
-      swap: false,
-      ...options,
-    });
-
   // Context object passed into the scope setup function
   const context: ScopeCtx = {
     params,
@@ -146,7 +135,10 @@ function createScope(
     appRoot: app.root,
     stores: app.stores,
     term: abortCtrl.signal,
-    fetch: scopedFetch,
+    // The scope's signal aborts in-flight requests on destroy. Override with
+    // `signal: undefined`, or `keepalive: true` to finish even if the tab closes.
+    fetch: (url, options = {}) =>
+      app.fetch(url, { signal: abortCtrl.signal, ...options }),
     on: createBoundOn(el, abortCtrl.signal, app),
     // Allows for triggering a scan from inside the scope
     scan: (newNode: Element) => binding?.scan(newNode),

@@ -497,8 +497,6 @@ export interface RequestError {
 export interface FetchConfig {
   /** The request URL. When triggered declaratively, resolved from the directive subject or `rz-url`. */
   url?: string;
-  /** DOM element or CSS selector to receive swapped response HTML. */
-  target?: Element | string;
   /** CSS selector for elements to receive the rouse request class for the duration of the request. */
   indicator?: string | null;
   /**
@@ -517,8 +515,6 @@ export interface FetchConfig {
     string,
     string | number | boolean | null | undefined | string[] | number[]
   >;
-  /** When false, suppress DOM swapping even if the response contains HTML. */
-  swap?: boolean;
   /** Skip all registered interceptors for this request. */
   skipInterceptors?: boolean;
   /** When true, auto-revert local state on push failure. Ignored by fetch and pull. */
@@ -639,7 +635,7 @@ export type ScopeCtx<
   stores: StoreManager;
   /** Aborted when the scope is destroyed. Use to clean up scope-defined subscriptions. */
   term: AbortSignal;
-  /** Scoped `fetch` surface. Targets the host, aborts on scope destroy, and defaults to `swap: false` unless overridden. */
+  /** Scoped `fetch` surface. Aborts on scope destroy. */
   fetch: RouseFetch;
   /**
    * Adds an event listener that is auto-removed when the scope is destroyed. Listens

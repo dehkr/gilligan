@@ -186,11 +186,12 @@ export async function request<T = any>(
  * Headers follow the same chain, merged separately so per-key overrides win
  * without losing unrelated header keys from earlier layers.
  *
- * `targetEl` applies to push/pull, where the action is initiated by one
- * element but configured on another (the store's owning element).
+ * `targetEl` applies to push/pull, where the action is initiated by one element but
+ * configured on another (the store's owning element). A `null` `triggerEl` is a
+ * programmatic request with no originating element: only the global layer applies.
  */
 export function resolveRequestConfig(
-  triggeringEl: Element,
+  triggerEl: Element | null,
   action: NetworkAction,
   app: RouseApp,
   targetEl?: Element,
@@ -199,6 +200,7 @@ export function resolveRequestConfig(
     headers: app.config.headers,
     credentials: app.config.credentials,
   };
+
   const requestVariant = REQUEST_VARIANTS[action];
   const headersVariant = HEADERS_VARIANTS[action];
 
@@ -227,10 +229,12 @@ export function resolveRequestConfig(
     addHeaders(headersVariant.getConfig(el, app));
   };
 
-  if (targetEl && targetEl !== triggeringEl) {
+  if (targetEl && targetEl !== triggerEl) {
     applyConfig(targetEl);
   }
-  applyConfig(triggeringEl);
+  if (triggerEl) {
+    applyConfig(triggerEl);
+  }
 
   const merged = Object.assign({}, ...layers) as Partial<RouseRequest>;
   merged.headers = Object.assign({}, ...headerLayers);

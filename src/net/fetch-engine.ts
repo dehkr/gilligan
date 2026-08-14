@@ -13,28 +13,41 @@ import { fallbackResponse, isFileType, isJsonType } from './response';
 const abortKeys = new WeakMap<Element, string>();
 
 /**
- * Runs a fetch from an element. Resolves the URL and merged request config,
- * drives the `rz:fetch:*` lifecycle, and routes the response payload. Never
- * throws — a failure comes back as a `RouseResponse` carrying an error.
+ * Runs a fetch. Resolves the URL and merged request config, drives the `rz:fetch:*`
+ * lifecycle, and routes the response payload. A failure comes back as a `RouseResponse`
+ * carrying an error.
+ *
+ * `options.triggerEl` is the element the request originates from, set by the declarative
+ * path. It gates everything element-derived: config attributes, field extraction, the
+ * disabled guard, and the abort key. It's the node the lifecycle events fire from. A
+ * programmatic fetch doesn't have a triggerEl, but it can be set manually via config.
  */
 export async function runFetch(
-  el: Element,
   app: RouseApp,
   options: RouseRequest,
 ): Promise<RouseResponse> {
+  const triggerEl = options.triggerEl ?? null;
+  // Lifecycle events always need a node to fire from, triggerEl or not
+  const hostEl = triggerEl ?? app.root;
+
   try {
-    // A debounced or queued trigger can fire after the element is gone
-    if (!el.isConnected) {
-      abortKeys.delete(el);
-      return fallbackResponse(options, 'Element disconnected from DOM');
+    if (triggerEl) {
+      // A debounced or queued trigger can fire after the element is gone
+      if (!triggerEl.isConnected) {
+        abortKeys.delete(triggerEl);
+        return fallbackResponse(options, 'Element disconnected from DOM');
+      }
+
+      // Bail out if disabled
+      if (
+        triggerEl.hasAttribute('disabled') ||
+        triggerEl.getAttribute('aria-disabled') === 'true'
+      ) {
+        return fallbackResponse(options, 'Element is disabled');
+      }
     }
 
-    // Bail out if disabled
-    if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') {
-      return fallbackResponse(options, 'Element is disabled');
-    }
-
-    const url = resolveUrl(el, options, app);
+    const url = resolveUrl(triggerEl, options, app);
     if (!url) {
       return fallbackResponse(
         options,
@@ -43,14 +56,15 @@ export async function runFetch(
       );
     }
 
-    const finalRequestInit = resolveRequestConfig(el, 'fetch', app);
-    const isFormEl = el instanceof HTMLFormElement;
-    const formMethod = isFormEl ? el.getAttribute('method') : undefined;
+    const finalRequestInit = resolveRequestConfig(triggerEl, 'fetch', app);
+    const isFormEl = triggerEl instanceof HTMLFormElement;
+    const formMethod = isFormEl ? triggerEl.getAttribute('method') : undefined;
 
+    // Prioritization: rz-fetch > rz-request > form attribute > 'GET'
     const method = (
-      options.method || // rz-fetch
-      finalRequestInit.method || // rz-request / rz-fetch-request
-      formMethod || // form native attribute
+      options.method ||
+      finalRequestInit.method ||
+      formMethod ||
       'GET'
     ).toUpperCase();
 
@@ -58,8 +72,8 @@ export async function runFetch(
       finalRequestInit.body !== undefined || options.body !== undefined;
 
     // Process standalone inputs to build the body or modify URL
-    if (!hasExplicitBody) {
-      extractFieldValues(el, method, finalRequestInit);
+    if (triggerEl && !hasExplicitBody) {
+      extractFieldValues(triggerEl, method, finalRequestInit);
     }
 
     // Final unified config object
@@ -67,26 +81,31 @@ export async function runFetch(
       ...finalRequestInit,
       ...options,
       method,
-      abortKey: options.abortKey || finalRequestInit.abortKey || getAbortKey(el),
-      form: !hasExplicitBody && isFormEl ? el : undefined,
+      // No triggerEl means no element to key on, so a programmatic caller opts
+      // into deduping by setting the `abortKey` option.
+      abortKey:
+        options.abortKey ||
+        finalRequestInit.abortKey ||
+        (triggerEl ? getAbortKey(triggerEl) : undefined),
+      form: !hasExplicitBody && isFormEl ? triggerEl : undefined,
     };
 
     const outcome = await runRequestLifecycle({
-      el,
+      el: hostEl,
       root: app.root,
       prefix: 'rz:fetch',
       config: finalOptions,
       configDetail: { config: finalOptions, url, method },
       lifecycleDetail: { config: finalOptions },
       terminalDetail: (result) => result,
-      run: (handle) => sendAndRoute(el, url, finalOptions, app, handle),
+      run: (handle) => sendAndRoute(hostEl, triggerEl, url, finalOptions, app, handle),
     });
 
     return outcome === PREVENTED
       ? fallbackResponse(finalOptions, 'Prevented by rz:fetch:config listener')
       : outcome;
   } catch (error: any) {
-    __DEV__ && err(`Error executing fetch on element:`, el, error);
+    __DEV__ && err(`Error executing fetch:`, ...(triggerEl ? [triggerEl] : []), error);
 
     return fallbackResponse(options, error.message || 'Internal error', 'INTERNAL_ERROR');
   }
@@ -94,10 +113,12 @@ export async function runFetch(
 
 /**
  * Sends the request and routes what comes back: server-directed redirects and
- * URL changes first, then the payload to its typed sub-event.
+ * URL changes first, then the payload to its typed sub-event. Events fire from
+ * `hostEl`; `triggerEl` is used only for abort-key bookkeeping.
  */
 async function sendAndRoute(
-  el: Element,
+  hostEl: Element,
+  triggerEl: Element | null,
   url: string,
   options: RouseRequest,
   app: RouseApp,
@@ -108,7 +129,7 @@ async function sendAndRoute(
     const rouseHeaders = extractRouseHeaders(result.headers);
 
     if (rouseHeaders.redirect) {
-      followRedirect(el, rouseHeaders.redirect);
+      followRedirect(triggerEl, rouseHeaders.redirect);
       return result;
     }
 
@@ -117,7 +138,7 @@ async function sendAndRoute(
     // short-circuit in the error block below.
     if (result.response?.redirected) {
       if (isSameOrigin(result.response.url)) {
-        followRedirect(el, result.response.url);
+        followRedirect(triggerEl, result.response.url);
         return result;
       }
       __DEV__ && warn(`Cross-origin redirect blocked: '${result.response.url}'.`);
@@ -138,12 +159,12 @@ async function sendAndRoute(
     if (result.error) {
       const s = result.error.status;
       if (s !== 'CANCELED' && s !== 'REDIRECTED' && result.response) {
-        routePayload(el, result, 'error');
+        routePayload(hostEl, result, 'error');
       }
       return result;
     }
     if (result.response) {
-      routePayload(el, result, 'success');
+      routePayload(hostEl, result, 'success');
     }
     return result;
   } catch (error: any) {
@@ -161,11 +182,15 @@ async function sendAndRoute(
  * Resolves the request URL from the options, expanding an `@store` reference.
  * Warns against `el` and returns `null` when there is no URL to resolve.
  */
-function resolveUrl(el: Element, options: RouseRequest, app: RouseApp): string | null {
+function resolveUrl(
+  el: Element | null,
+  options: RouseRequest,
+  app: RouseApp,
+): string | null {
   const url = options.url ? resolveStoreUrl(options.url, app.stores) : null;
 
   if (!url) {
-    __DEV__ && warn('Invalid or missing URL for the fetch request.', el);
+    __DEV__ && warn('Invalid or missing URL for the fetch request.', ...(el ? [el] : []));
     return null;
   }
 
@@ -173,8 +198,10 @@ function resolveUrl(el: Element, options: RouseRequest, app: RouseApp): string |
 }
 
 /** Navigates to a server-directed redirect target. */
-function followRedirect(el: Element, url: string): void {
-  abortKeys.delete(el);
+function followRedirect(el: Element | null, url: string): void {
+  if (el) {
+    abortKeys.delete(el);
+  }
   window.location.assign(url);
 }
 
@@ -197,20 +224,20 @@ function getAbortKey(el: Element): string {
  * Dispatches the typed payload sub-event (`:file` / `:json` / `:html`) under the
  * given `rz:fetch:{success,error}` prefix, driving JSON and HTML routing.
  */
-function routePayload(el: Element, result: RouseResponse, type: 'success' | 'error') {
+function routePayload(hostEl: Element, result: RouseResponse, type: 'success' | 'error') {
   const data = result.data;
   const prefix = `rz:fetch:${type}`;
 
   // Check for files (Blob/ArrayBuffer)
   if (isFileType(data)) {
-    dispatch(el, `${prefix}:file`, result);
+    dispatch(hostEl, `${prefix}:file`, result);
     return;
   }
 
-  // Check for parsed JSON (POJO or Array). Store manager requires
-  // parsed objects to merge state.
+  // Check for parsed JSON (POJO or Array). Store manager requires parsed objects
+  // to merge state.
   if (Array.isArray(data) || isPlainObject(data)) {
-    dispatch(el, `${prefix}:json`, result);
+    dispatch(hostEl, `${prefix}:json`, result);
     return;
   }
 
@@ -223,7 +250,7 @@ function routePayload(el: Element, result: RouseResponse, type: 'success' | 'err
       }
     }
 
-    dispatch(el, `${prefix}:html`, result);
+    dispatch(hostEl, `${prefix}:html`, result);
     return;
   }
 

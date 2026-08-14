@@ -12,37 +12,42 @@ import { dispatch } from './events';
 
 /**
  * Listens to the app root for HTML fetch responses and routes the payloads into DOM
- * targets named by `rz-target` or a server `Rouse-Target` header. Error responses route
- * only when the server names a target, since `rz-target` is success-only output.
+ * targets named by `rz-target` on the originating element, or a server `Rouse-Target`
+ * header.
+ *
+ * A programmatic fetch doesn't have an element, so it doesn't swap by default. A server-
+ * named target can place the payload, or the caller can place it using `swap()`. The
+ * `triggerEl` option is configurable, however, so a pre-configured element can be
+ * triggered remotely.
+ *
+ * Error responses route only when the server names a target, since `rz-target` is
+ * success-only output.
  */
 export function initDomRouter(app: RouseApp, signal: AbortSignal) {
   const route = (e: Event) => {
-    const { target, detail } = e as CustomEvent<RouseResponse>;
+    const { detail } = e as CustomEvent<RouseResponse>;
     const { config, data, targetOverride } = detail;
+    const triggerEl = config?.triggerEl;
 
-    // Programmatic `fetch` defaults to `swap: false`; it doesn't auto-update the DOM
-    if (config?.swap === false) return;
     // An empty response (`null`) or non-string body has nothing to swap
     if (typeof data !== 'string') return;
     // Don't route an error response unless the server provides an override
     if (e.type.includes('error') && !targetOverride) return;
+    // No originating element means no destination or host for the declarative path
+    if (!triggerEl && !targetOverride) return;
 
-    const operations = rzTarget.getConfig(
-      target as Element,
-      app.root,
-      targetOverride,
-    ).swaps;
+    const { swaps } = rzTarget.getConfig(triggerEl ?? app.root, app.root, targetOverride);
 
-    for (const { targets, method } of operations) {
+    for (const { targets, method } of swaps) {
       for (const targetEl of targets) {
         swap(data, targetEl, method, 'fetch');
       }
     }
   };
 
-  for (const eventType of ['success', 'error']) {
+  ['success', 'error'].forEach((eventType) => {
     app.root.addEventListener(`rz:fetch:${eventType}:html`, route, { signal });
-  }
+  });
 }
 
 /**

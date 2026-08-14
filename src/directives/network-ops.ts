@@ -152,7 +152,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
             );
           return;
         }
-        runFetch(el, app, opts);
+        runFetch(app, opts);
       },
     });
 

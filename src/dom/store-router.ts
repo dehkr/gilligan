@@ -7,22 +7,30 @@ import { dispatch } from './events';
 
 /**
  * Listens to the app root for JSON fetch responses and routes the payloads into global
- * stores named by `rz-target` or a server `Rouse-Target` header. Error responses route
- * only when the server names a target, since `rz-target` is success-only output.
+ * stores named by `rz-target` or a server `Rouse-Target` header. Since programmatic fetch
+ * doesn't originate from an element, it doesn't route unless the `triggerEl` option is
+ * set explicitly. Error responses route only when the server names a target, since
+ * `rz-target` is success-only output.
  */
 export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
   const route = (e: Event) => {
-    const { target, detail } = e as CustomEvent<RouseResponse>;
-    const { data, targetOverride } = detail;
+    const { detail } = e as CustomEvent<RouseResponse>;
+    const { config, data, targetOverride } = detail;
+    const triggerEl = config?.triggerEl;
 
     // Don't route an error response unless the server provides an override
     if (e.type.includes('error') && !targetOverride) return;
 
-    routeToStore(
-      app,
-      rzTarget.getConfig(target as Element, app.root, targetOverride).stores,
-      data,
+    // No trigger means nothing declared a destination; the caller gets the data
+    if (!triggerEl && !targetOverride) return;
+
+    const { stores } = rzTarget.getConfig(
+      triggerEl ?? app.root,
+      app.root,
+      targetOverride,
     );
+
+    routeToStore(app, stores, data);
   };
 
   for (const eventType of ['success', 'error']) {
