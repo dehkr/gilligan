@@ -15,13 +15,13 @@ Rouse coordinates server-rendered HTML and client-side reactivity within a singl
 - **Backend agnostic** – pairs with anything that returns HTML or JSON
 - **Strict CSP compliance** – no `unsafe-eval` or expression evaluation in markup
 - **Buildless or bundled** – load from a CDN or install from npm, fully typed
-- **Lightweight** – 20kB gzipped with no external dependencies
+- **Lightweight** – 19 KB gzipped with no external dependencies
 
 ## Features
 
 ### Reactive state
 
-Model UI state in local scopes and global stores backed by signals, with a proxy layer for ergonomic object and array mutations.
+Model UI state in local scopes and global stores backed by [alien-signals](https://github.com/stackblitz/alien-signals), with a proxy layer for ergonomic object and array mutations.
 
 ### Native client rendering
 
@@ -49,23 +49,13 @@ Directive values are declarative: they describe paths, triggers, and targets. Lo
 
 ## Installation
 
-Rouse ships as ES modules only, in two builds:
-
-| Build | File | Use |
-| --- | --- | --- |
-| Development | `dist/rouse.js` | Default. Emits warnings and errors for misused directives, missing targets, and invalid values. |
-| Production | `dist/rouse.min.js` | Minified, with all diagnostics stripped. |
-
-Start with the development build. Switch to the minified one when you deploy.
+Rouse ships as ES modules only, in two builds: a development build with diagnostics, and a minified production build.
 
 ### From a CDN
 
-Import Rouse inside a module script and start the app. Rouse has no global side effects, so nothing runs until you call `rouse()`.
-
 ```html
 <script type="module">
-  import { rouse } from 'https://cdn.jsdelivr.net/npm/rousejs@0.11.0/dist/rouse.js';
-  // Or use UNPKG: https://unpkg.com/rousejs@0.11.0/dist/rouse.js
+  import { rouse } from 'https://cdn.jsdelivr.net/npm/rousejs@0.12.0/dist/rouse.js';
 
   const app = rouse();
   app.start();
@@ -88,12 +78,13 @@ npm install rousejs
 import { rouse } from 'rousejs';
 ```
 
-Bundlers that set the standard `development` and `production` export conditions (Vite, webpack) get the dev build while you develop and the minified one when you build, with no extra configuration.
+Types are bundled. No additional setup for TypeScript necessary.
 
-Tools that don't set those conditions, such as esbuild and Rollup, resolve to the minified build. Import the `dev` subpath when you want diagnostics (`rousejs/min` always resolves to the minified build):
+### Build selection
 
-```js
-import { rouse } from 'rousejs/dev';
-```
+| Build | File | Use |
+| --- | --- | --- |
+| Development | `dist/rouse.js` | Emits warnings for misused directives, missing targets, and invalid values. |
+| Production | `dist/rouse.min.js` | Minified, diagnostics stripped. |
 
-Types are bundled, so no additional setup for TypeScript is necessary.
+Bundlers that set the standard `development`/`production` export conditions (Vite, webpack) get the right build automatically. Tools that don't (esbuild, Rollup) resolve to the minified build by default. Import `rousejs/dev` if you want diagnostics during development. `rousejs/min` always resolves to the minified build regardless of tool.

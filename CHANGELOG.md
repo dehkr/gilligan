@@ -9,9 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add the `indicator` option to the `rz-request` family. Accepts a CSS selector for elements to receive the `rouse-request` class for the duration of the request. Defaults to the triggering element; `indicator: null` suppresses the class.
 - Add `development` and `production` export conditions, so bundlers that set them (Vite, webpack) resolve to the development build while developing and the minified one when building.
 - Add a `rousejs/dev` subpath that resolves to the development build.
+- Add the `indicator` option to the `rz-request` family. Accepts a CSS selector for elements to receive the `rouse-request` class for the duration of the request. Defaults to the triggering element; `indicator: null` suppresses the class.
 
 ### Changed
 
@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- **Breaking:** Remove the automatic `aria-busy="true"` on the triggering element. Apply it from an `rz:fetch:start` / `:end` listener pair instead.
+- **Breaking:** Remove the automatic `aria-busy="true"` on the triggering element. Apply it from an `rz:fetch:start`/`:end` listener pair instead.
 - **Breaking:** Remove `readOnly` and `nonReactive`.
 - **Breaking:** Remove `retry`/`retryDelay` and declarative `retry`/`retry-delay` from `rz-request`. Use conditional triggers (`rz-pull="page-visible: @users"`) or handle retries in an `rz:fetch:error` listener. `timeout` is unaffected.
 - **Breaking:** Remove the HTTP-method aliases on `app.fetch` and `ctx.fetch`. Pass the method in options: `fetch(url, { method: 'POST' })`.
@@ -45,7 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix the `once` modifier being ignored by trigger sources that don't self-terminate: `interval`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.
-- Stop `app.fetch` and `ctx.fetch` from reporting a `triggerEl`. It is now set only by `rz-fetch`, naming the element hosting the directive.
+- Stop `app.fetch` and `ctx.fetch` from defining `triggerEl` by default. Only `rz-fetch` sets it automatically, naming the element hosting the directive.
 - Fix `leading` and `trailing` modifiers overwriting each other. The two edges are now independent.
 
 ## [0.11.0] - 2026-07-27
