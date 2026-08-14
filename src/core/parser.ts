@@ -5,7 +5,6 @@ import type {
   TriggerSubjectPair,
 } from '../types';
 import {
-  FLAG_MODIFIERS,
   type HttpMethod,
   isFlagModifier,
   isHttpMethod,
@@ -168,7 +167,7 @@ function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
     // Exact matches are tested first, so a hyphenated modifier name like
     // `stop-immediate` isn't processed as a [name]-[value] pair.
     if (isFlagModifier(token)) {
-      options[FLAG_MODIFIERS[token]] = true;
+      options[token === 'stop-immediate' ? 'stopImmediate' : token] = true;
     } else if (isListenTarget(token)) {
       options.listenOn = token;
     } else if (token === 'debounce' || token === 'throttle') {

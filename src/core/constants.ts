@@ -74,31 +74,32 @@ export function isPatchAction(key: string | undefined): key is PatchAction {
 }
 
 /**
- * Bare trigger modifiers that set a boolean `TriggerOptions` field, mapped to
- * that field. The declarative spelling is kebab-case; the field is camelCase.
+ * Bare trigger modifiers that set a boolean `TriggerOptions` field. Each names
+ * its field directly except `stop-immediate`, whose kebab-case declarative
+ * spelling maps to the camelCase `stopImmediate` at the parse site.
  */
-export const FLAG_MODIFIERS = {
-  once: 'once',
-  capture: 'capture',
-  passive: 'passive',
-  outside: 'outside',
-  self: 'self',
-  loose: 'loose',
-  ctrl: 'ctrl',
-  alt: 'alt',
-  shift: 'shift',
-  meta: 'meta',
-  prevent: 'prevent',
-  stop: 'stop',
-  'stop-immediate': 'stopImmediate',
-  leading: 'leading',
-  trailing: 'trailing',
-} as const;
+export const FLAG_MODIFIERS = [
+  'once',
+  'capture',
+  'passive',
+  'outside',
+  'self',
+  'loose',
+  'ctrl',
+  'alt',
+  'shift',
+  'meta',
+  'prevent',
+  'stop',
+  'stop-immediate',
+  'leading',
+  'trailing',
+] as const;
 
-export type FlagModifier = keyof typeof FLAG_MODIFIERS;
+export type FlagModifier = (typeof FLAG_MODIFIERS)[number];
 
 export const isFlagModifier = (val: string): val is FlagModifier =>
-  Object.hasOwn(FLAG_MODIFIERS, val);
+  (FLAG_MODIFIERS as readonly string[]).includes(val);
 
 /** Modifiers naming a host for the listener other than the element itself. */
 export const LISTEN_TARGETS = ['window', 'document', 'root'] as const;
