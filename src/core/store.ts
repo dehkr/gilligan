@@ -262,13 +262,8 @@ export class StoreManager {
       el: firingEl,
       root: this.app.root,
       prefix: operation === 'push' ? 'rz:push' : 'rz:pull',
-      config: requestOptions,
       configDetail: { storeName, config: requestOptions, url, method },
-      lifecycleDetail: { storeName, config: requestOptions },
-      terminalDetail: (result) => ({
-        storeName,
-        result,
-      }),
+      terminalDetail: (result) => ({ storeName, result }),
       run: (handle) =>
         this._sendAndApply(entry, operation, url, requestOptions, handle, manualConfig),
     });

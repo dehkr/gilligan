@@ -3,11 +3,8 @@ import { warn } from '../core/diagnostics';
 import { dispatch } from '../dom/events';
 import type {
   FetchConfigDetail,
-  FetchLifecycleDetail,
   PushPullConfigDetail,
-  PushPullLifecycleDetail,
   PushPullResultDetail,
-  RouseRequest,
   RouseResponse,
 } from '../types';
 
@@ -26,8 +23,6 @@ export interface LifecycleHandle {
 interface LifecycleBase {
   el: Element;
   root: Element;
-  /** Resolved config, read after the `:config` gate so listeners can retarget `indicator`. */
-  config: RouseRequest;
   run: (handle: LifecycleHandle) => Promise<RouseResponse>;
 }
 
@@ -40,13 +35,11 @@ export type RequestLifecycleOptions = LifecycleBase &
     | {
         prefix: 'rz:fetch';
         configDetail: FetchConfigDetail;
-        lifecycleDetail: FetchLifecycleDetail;
         terminalDetail: (result: RouseResponse) => RouseResponse;
       }
     | {
         prefix: 'rz:push' | 'rz:pull';
         configDetail: PushPullConfigDetail;
-        lifecycleDetail: PushPullLifecycleDetail;
         terminalDetail: (result: RouseResponse) => PushPullResultDetail;
       }
   );
@@ -58,15 +51,19 @@ export type RequestLifecycleOptions = LifecycleBase &
 export async function runRequestLifecycle(
   opts: RequestLifecycleOptions,
 ): Promise<RouseResponse | typeof PREVENTED> {
-  const { el, root, prefix, config, configDetail, lifecycleDetail, terminalDetail, run } =
-    opts;
+  const { el, root, prefix, configDetail, terminalDetail, run } = opts;
 
   const configEvent = dispatch(el, `${prefix}:config`, configDetail, {
     cancelable: true,
   });
+
   if (configEvent.defaultPrevented) return PREVENTED;
 
-  const indicators = resolveIndicators(el, root, config.indicator);
+  // Only the `:config` detail carries `url` and `method` so drop them
+  const { url: _url, method: _method, ...lifecycleDetail } = configDetail;
+  // Resolved after the `:config` gate so listeners can retarget `indicator`
+  const indicators = resolveIndicators(el, root, configDetail.config.indicator);
+
   mark(indicators);
 
   dispatch(el, `${prefix}:start`, lifecycleDetail);

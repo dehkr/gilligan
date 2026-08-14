@@ -63,7 +63,10 @@ export interface ScopeLifecycleDetail {
 
 /** Detail for `rz:fetch:config`. */
 export interface FetchConfigDetail {
-  /** The final unified request config. Mutable by listeners; carries `method` but not the resolved `url`. */
+  /**
+   * The final unified request config. Mutable in place by listeners; replacing the object
+   * has no effect on the request. Carries `method` but not the resolved `url`.
+   */
   config: RouseRequest;
   /** The resolved request URL actually fetched. Surfaced here because `config` does not carry it. */
   url: string;
@@ -71,11 +74,11 @@ export interface FetchConfigDetail {
   method: string;
 }
 
-/** Detail for `rz:fetch:start`, `rz:fetch:abort`, and `rz:fetch:end`. */
-export interface FetchLifecycleDetail {
-  /** The final unified request config driving this request. */
-  config: RouseRequest;
-}
+/**
+ * Detail for `rz:fetch:start`, `rz:fetch:abort`, and `rz:fetch:end`. The config
+ * detail minus the request-identifying fields, which only `:config` carries.
+ */
+export type FetchLifecycleDetail = Omit<FetchConfigDetail, 'url' | 'method'>;
 
 /** Detail for `rz:fetch:success`: the full response object. */
 export type FetchSuccessDetail = RouseResponse;
@@ -105,7 +108,10 @@ export type FetchErrorFileDetail = RouseResponse<Blob | ArrayBuffer>;
 export interface PushPullConfigDetail {
   /** Name of the store being synced. */
   storeName: string;
-  /** The final unified request config. Mutable by listeners; carries `method` but not `url`. */
+  /**
+   * The final unified request config. Mutable in place by listeners; replacing the object
+   * has no effect on the request. Carries `method` but not the resolved `url`.
+   */
   config: RouseRequest;
   /** The resolved request URL. */
   url: string;
@@ -113,13 +119,11 @@ export interface PushPullConfigDetail {
   method: string;
 }
 
-/** Detail for `rz:push`/`rz:pull` `:start`, `:abort`, and `:end`. */
-export interface PushPullLifecycleDetail {
-  /** Name of the store being synced. */
-  storeName: string;
-  /** The final unified request config driving this request. */
-  config: RouseRequest;
-}
+/**
+ * Detail for `rz:push`/`rz:pull` `:start`, `:abort`, and `:end`. The config detail
+ * minus the request-identifying fields, which only `:config` carries.
+ */
+export type PushPullLifecycleDetail = Omit<PushPullConfigDetail, 'url' | 'method'>;
 
 /** Detail for `rz:push`/`rz:pull` `:success` and `:error`: the full response, plus the store name. */
 export interface PushPullResultDetail {

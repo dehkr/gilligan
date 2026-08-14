@@ -94,9 +94,7 @@ export async function runFetch(
       el: hostEl,
       root: app.root,
       prefix: 'rz:fetch',
-      config: finalOptions,
       configDetail: { config: finalOptions, url, method },
-      lifecycleDetail: { config: finalOptions },
       terminalDetail: (result) => result,
       run: (handle) => sendAndRoute(hostEl, triggerEl, url, finalOptions, app, handle),
     });
