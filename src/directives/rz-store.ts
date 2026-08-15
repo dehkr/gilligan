@@ -1,5 +1,5 @@
 import type { RouseApp } from '../core/app';
-import { directiveSelector, getDirectiveValue, hasDirective } from '../core/attributes';
+import { directiveSelector, getDirectiveValue } from '../core/attributes';
 import { type HttpMethod, isHttpMethod } from '../core/constants';
 import { err, warn } from '../core/diagnostics';
 import type { SyncConfig } from '../core/store';
@@ -50,9 +50,9 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
 
   const cfg: Partial<SyncConfig> = {};
 
-  if (hasDirective(el, 'url')) {
-    const { url } = rzUrl.getConfig(el);
-    if (url) cfg.url = url;
+  const url = rzUrl.getConfig(el);
+  if (url) {
+    cfg.url = url;
   }
 
   const reqBase = rzRequest.getConfig(el, app);

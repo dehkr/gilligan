@@ -9,8 +9,8 @@ import type { ConfigDirective } from '../types';
  * @example
  * <button rz-url="/api/users" rz-fetch="click: POST">Save</button>
  */
-function getConfig(el: Element): { url: string } {
-  return { url: getDirectiveValue(el, 'url')?.trim() ?? '' };
+function getConfig(el: Element): string | null {
+  return getDirectiveValue(el, 'url')?.trim() || null;
 }
 
-export const rzUrl = { getConfig } as const satisfies ConfigDirective<{ url: string }>;
+export const rzUrl = { getConfig } as const satisfies ConfigDirective<string | null>;
