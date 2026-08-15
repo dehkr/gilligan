@@ -2,43 +2,55 @@ import { warn } from '../core/diagnostics';
 import { parseDeclarations } from '../core/parser';
 import type { BindableValue } from '../types';
 
+/** Last markup written by `updateHtml`, compared instead of re-reading the DOM. */
+const prevHtml = new WeakMap<Element, string>();
+/** Last class string written by `updateClass`, so the next write can remove it. */
 const prevClasses = new WeakMap<Element, string>();
-const prevStyles = new WeakMap<Element, string>();
+/** Property names written by `updateStyle`, so the next write clears exactly those. */
+const prevStyles = new WeakMap<Element, string[]>();
+/** Properties already reported, so each `rz-prop` failure warns once. */
 const warnedProps = new WeakMap<Element, Set<string>>();
 
+/** Converts a camelCase style key to CSS version. Custom properties pass through. */
+const toKebab = (k: string) =>
+  k.startsWith('--') ? k : k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+
+/** White space regex. */
+const WS = /\s+/;
+
 /**
- * Handles innerText updates.
+ * Writes text content, skipping the write when it already matches.
+ *
+ * Unlike `updateHtml` this compares the live DOM rather than a cache, since the
+ * user may write here too.
  */
 export function updateText(el: Element, value: BindableValue) {
-  // Check equality to avoid cursor jumping in contenteditable
-  const strVal = String(value ?? '');
-  if (el.textContent !== strVal) {
-    el.textContent = strVal;
-  }
+  setStringValue(el, 'textContent', value);
 }
 
 /**
- * Handles innerHTML updates.
+ * Replaces markup, skipping the write when it already matches.
+ *
+ * Compared against the last written value rather than reading `innerHTML`, which would
+ * serialize the whole subtree on every update.
  */
 export function updateHtml(el: Element, value: BindableValue) {
   const htmlVal = String(value ?? '');
-  if (el.innerHTML !== htmlVal) {
-    el.innerHTML = htmlVal;
-  }
+  if (prevHtml.get(el) === htmlVal) return;
+
+  prevHtml.set(el, htmlVal);
+  el.innerHTML = htmlVal;
 }
 
 /**
- * Handles setting value of modelable elements.
+ * Writes a value into a form control or contenteditable, dispatching on element type.
+ * Text-like inputs write only when the value differs, so the caret doesn't jump.
  */
 export function setModelableValue(el: Element, value: BindableValue) {
   if (!(el instanceof HTMLElement)) return;
 
-  // Text of elements with `contenteditable` attribute are modelable
   if (el.isContentEditable) {
-    const strVal = String(value ?? '');
-    if (el.innerText !== strVal) {
-      el.innerText = strVal;
-    }
+    setStringValue(el, 'innerText', value);
     return;
   }
 
@@ -48,7 +60,7 @@ export function setModelableValue(el: Element, value: BindableValue) {
     } else if (el.type === 'radio') {
       el.checked = el.value === String(value);
     } else {
-      setStringValue(el, value);
+      setStringValue(el, 'value', value);
     }
     return;
   }
@@ -56,7 +68,7 @@ export function setModelableValue(el: Element, value: BindableValue) {
   if (el instanceof HTMLSelectElement) {
     if (el.multiple && Array.isArray(value)) {
       const vals = new Set(value.map(String));
-      for (const opt of Array.from(el.options)) {
+      for (const opt of el.options) {
         opt.selected = vals.has(opt.value);
       }
     } else {
@@ -66,7 +78,7 @@ export function setModelableValue(el: Element, value: BindableValue) {
   }
 
   if (el instanceof HTMLTextAreaElement) {
-    setStringValue(el, value);
+    setStringValue(el, 'value', value);
     return;
   }
 
@@ -77,7 +89,8 @@ export function setModelableValue(el: Element, value: BindableValue) {
 }
 
 /**
- * Returns current value of HTML element.
+ * Reads the current value out of a form control or contenteditable. Checkboxes yield
+ * a boolean; number and range inputs a number or `null`; multi-selects an array.
  */
 export function getModelableValue(el: Element): BindableValue {
   if (!(el instanceof HTMLElement)) return;
@@ -109,14 +122,14 @@ export function getModelableValue(el: Element): BindableValue {
 }
 
 /**
- * Handles class attribute updates.
- * Object syntax toggles class: `{ 'active': bool }` or `{ 'active bg-red: bool' }`.
- * String value swaps class w/out replacing existing classes: 'active' or 'active bg-red'.
+ * Applies a class binding. An object toggles each key by its truthiness:
+ * `{ 'active bg-red': bool }`; a string swaps only the classes this binding last wrote,
+ * leaving pre-existing classes in the markup intact.
  */
 export function updateClass(el: Element, value: BindableValue) {
   if (value && typeof value === 'object') {
     for (const [cls, active] of Object.entries(value)) {
-      const classes = cls.trim().split(/\s+/).filter(Boolean);
+      const classes = cls.trim().split(WS).filter(Boolean);
 
       if (classes.length > 0) {
         if (active) {
@@ -131,15 +144,12 @@ export function updateClass(el: Element, value: BindableValue) {
     const oldClass = prevClasses.get(el);
 
     if (oldClass) {
-      el.classList.remove(...oldClass.split(/\s+/));
+      el.classList.remove(...oldClass.split(WS));
     }
 
     if (newClass) {
-      const classes = newClass.split(/\s+/).filter(Boolean);
-      if (classes.length) {
-        el.classList.add(...classes);
-        prevClasses.set(el, newClass);
-      }
+      el.classList.add(...newClass.split(WS));
+      prevClasses.set(el, newClass);
     } else {
       prevClasses.delete(el);
     }
@@ -147,7 +157,7 @@ export function updateClass(el: Element, value: BindableValue) {
 }
 
 /**
- * Add or remove every declaration in a style string, leaving other props intact.
+ * Adds or removes every declaration in a style string, leaving other properties intact.
  */
 export function applyStyles(el: Element, decl: string, active: boolean) {
   if (!canBeStyled(el)) return;
@@ -162,7 +172,7 @@ export function applyStyles(el: Element, decl: string, active: boolean) {
 }
 
 /**
- * Set one CSS property to a resolved value. Nullish clears it.
+ * Sets one CSS property to a resolved value. Null or undefined clears it.
  */
 export function setStyleProperty(el: Element, prop: string, value: BindableValue) {
   if (!canBeStyled(el)) return;
@@ -175,33 +185,42 @@ export function setStyleProperty(el: Element, prop: string, value: BindableValue
 }
 
 /**
- * Handles style attribute updates. Supports object syntax and string value.
+ * Applies a style binding from either an object or a declaration string.
+ *
+ * Clears properties the previous call wrote first so keys dropped between updates don't
+ * linger. Both forms route through `setProperty`, so custom properties work in each.
  */
 export function updateStyle(el: Element, value: BindableValue) {
   if (!canBeStyled(el)) return;
 
-  if (value && typeof value === 'object') {
-    Object.assign(el.style, value);
-    return;
+  for (const prop of prevStyles.get(el) ?? []) {
+    el.style.removeProperty(prop);
   }
 
-  const next = String(value ?? '').trim();
-  const prev = prevStyles.get(el);
+  const entries: Array<[string, string]> =
+    value && typeof value === 'object'
+      ? Object.entries(value)
+          .filter(([, v]) => v != null)
+          .map(([k, v]) => [toKebab(k), String(v)])
+      : parseDeclarations(String(value ?? ''));
 
-  if (prev) {
-    applyStyles(el, prev, false);
+  for (const [prop, v] of entries) {
+    el.style.setProperty(prop, v);
   }
 
-  if (next) {
-    applyStyles(el, next, true);
-    prevStyles.set(el, next);
+  if (entries.length) {
+    prevStyles.set(
+      el,
+      entries.map(([prop]) => prop),
+    );
   } else {
     prevStyles.delete(el);
   }
 }
 
 /**
- * Handles generic attribute updates.
+ * Writes an attribute. `false` and nullish remove it; `true` sets the empty string,
+ * matching how boolean HTML attributes are spelled.
  */
 export function updateAttr(el: Element, attr: string, value: BindableValue) {
   if (value === false || value == null) {
@@ -234,18 +253,25 @@ function warnPropOnce(el: Element, name: string): void {
   warn(`rz-prop: cannot set property '${name}'. It is read-only or has no setter.`, el);
 }
 
-/** Checks if an element is a type that can have styles applied to it. */
-function canBeStyled(el: Element): el is HTMLElement | SVGElement {
-  return el instanceof HTMLElement || el instanceof SVGElement;
+/**
+ * Checks if an element exposes an inline style declaration.
+ */
+function canBeStyled(el: Element): el is Element & ElementCSSInlineStyle {
+  return 'style' in el;
 }
 
-/** Writes a string value only when it differs, so the caret doesn't jump. */
-function setStringValue(
-  el: HTMLInputElement | HTMLTextAreaElement,
+/**
+ * Writes a string property only when it differs. The comparison reads the live DOM
+ * because the user may be editing it too (a contenteditable, a focused input), and
+ * skipping redundant writes prevents the caret from jumping.
+ */
+function setStringValue<K extends string>(
+  el: Record<K, string | null>,
+  prop: K,
   value: BindableValue,
 ) {
   const strVal = String(value ?? '');
-  if (el.value !== strVal) {
-    el.value = strVal;
+  if (el[prop] !== strVal) {
+    el[prop] = strVal;
   }
 }
