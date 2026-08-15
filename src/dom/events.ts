@@ -426,16 +426,9 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
    */
   interact: ({ el, action }) => {
     const events = ['pointerover', 'focusin'];
+    events.forEach((evt) => el.addEventListener(evt, action, { passive: true }));
 
-    for (const evt of events) {
-      el.addEventListener(evt, action, { passive: true });
-    }
-
-    return () => {
-      for (const evt of events) {
-        el.removeEventListener(evt, action);
-      }
-    };
+    return () => events.forEach((evt) => el.removeEventListener(evt, action));
   },
 
   /** window.requestIdleCallback (one-time execution). */

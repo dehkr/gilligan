@@ -138,15 +138,10 @@ function parseSegment(segment: string, pairs: ParsedDirectiveValue): void {
 export function parseTriggerSubjectPairs(
   value: string | null | undefined,
 ): TriggerSubjectPair[] {
-  const pairs: TriggerSubjectPair[] = [];
-  for (const [keyStr, subjectStr] of parseDirectiveValue(value)) {
+  return parseDirectiveValue(value).flatMap(([keyStr, subjectStr]) => {
     const subject = subjectStr || null;
-    for (const trigger of parseTriggers(keyStr)) {
-      pairs.push({ trigger, subject });
-    }
-  }
-
-  return pairs;
+    return parseTriggers(keyStr).map((trigger) => ({ trigger, subject }));
+  });
 }
 
 /**

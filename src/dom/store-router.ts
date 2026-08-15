@@ -33,9 +33,9 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
     routeToStore(app, stores, data);
   };
 
-  for (const eventType of ['success', 'error']) {
+  ['success', 'error'].forEach((eventType) => {
     app.root.addEventListener(`rz:fetch:${eventType}:json`, route, { signal });
-  }
+  });
 }
 
 /**

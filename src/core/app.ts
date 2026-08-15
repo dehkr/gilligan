@@ -421,15 +421,11 @@ export class RouseApp {
     this._observer?.disconnect();
 
     const scopeEls = queryTargets<HTMLElement>(this.root, SCOPE_SELECTOR);
-    for (const el of scopeEls) {
-      destroyInstance(el);
-    }
+    scopeEls.forEach(destroyInstance);
 
     for (const directive of NETWORK_DIRECTIVES) {
       const networkEls = queryTargets(this.root, directive.selector);
-      for (const el of networkEls) {
-        directive.teardown(el);
-      }
+      networkEls.forEach((el) => directive.teardown(el));
     }
 
     for (const el of this.stores.elements()) {
