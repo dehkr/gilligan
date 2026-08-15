@@ -101,14 +101,15 @@ export function preparePayload(url: string, options: RouseRequest, baseUrl: stri
     // GET forms should append to the URL as query parameters
     if (method === 'GET' || method === 'HEAD') {
       const formData = new FormData(form);
-      formData.forEach((value, key) => {
+
+      for (const [key, value] of formData) {
         if (typeof value === 'string') {
           urlObj.searchParams.append(key, value);
         } else if (value instanceof File) {
           // Native HTML behavior is to send the filename in the query string
           urlObj.searchParams.append(key, value.name);
         }
-      });
+      }
     }
 
     // POST/PUT/PATCH -> send as FormData body

@@ -67,8 +67,7 @@ const NO_ITEM: Record<string, unknown> = {};
  */
 function normalize(value: unknown): NormalizedValue {
   if (Array.isArray(value)) {
-    const items: ItemPlan[] = [];
-    value.forEach((item, index) => items.push({ item, index }));
+    const items: ItemPlan[] = value.map((item, index) => ({ item, index }));
     return { mode: 'array', items };
   }
 
@@ -164,9 +163,7 @@ export function renderTemplate(
     // Collect directive elements before marking render-owned, so the binder
     // guard doesn't reject our own walk.
     const collected: Element[] = [];
-    for (const root of elementRoots) {
-      walkBoundElements(root, (e) => collected.push(e));
-    }
+    elementRoots.forEach((root) => walkBoundElements(root, (e) => collected.push(e)));
 
     const itemSig: ItemSignal = signal(reactive(plan.item as object));
     const indexSig: IndexSignal = signal(plan.index);
@@ -197,20 +194,13 @@ export function renderTemplate(
       },
     }) as RenderContext;
 
-    for (const root of elementRoots) {
-      markRenderOwned(root);
-    }
+    elementRoots.forEach(markRenderOwned);
 
     // Detach from the render effect's tracking so these per-instance effects
     // survive its re-runs (and don't leak into it).
-    const cleanups: BoundCleanupFn[] = [];
-    untracked(() => {
-      for (const e of collected) {
-        for (const fn of bindDirectives(e, ctx, app)) {
-          cleanups.push(fn);
-        }
-      }
-    });
+    const cleanups: BoundCleanupFn[] = untracked(() =>
+      collected.flatMap((e) => bindDirectives(e, ctx, app)),
+    );
 
     // Per-item teleport. `renderTarget` accepts a selector string or
     // a direct Element reference.
@@ -236,15 +226,16 @@ export function renderTemplate(
     target?.append(...roots);
 
     const teardown = () => {
-      for (const fn of cleanups) {
+      for (const cleanup of cleanups) {
         try {
-          fn();
+          cleanup();
         } catch (error) {
           __DEV__ && warn('rz-render: instance cleanup failed.', error);
         }
       }
-      for (const node of roots) node.remove();
-      for (const root of elementRoots) unmarkRenderOwned(root);
+
+      roots.forEach((node) => node.remove());
+      elementRoots.forEach(unmarkRenderOwned);
     };
 
     return {

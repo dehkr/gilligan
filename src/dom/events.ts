@@ -151,34 +151,21 @@ export function on(
       ? (callback as ActionFn)
       : (e?: Event) => callback.handleEvent(e as Event);
 
-  const cleanups: Array<VoidFn> = [];
-
-  for (const entry of Array.isArray(events) ? events : [events]) {
-    const event = entry.trim();
-
-    const cleanup = dispatchTrigger(
-      { event, options: triggerOptions },
-      { el: target as Element, app, action, suppressNavigation: false },
-    );
-
-    if (cleanup) {
-      cleanups.push(cleanup);
-    }
-  }
+  const cleanups = (Array.isArray(events) ? events : [events]).flatMap(
+    (entry) =>
+      dispatchTrigger(
+        { event: entry.trim(), options: triggerOptions },
+        { el: target as Element, app, action, suppressNavigation: false },
+      ) ?? [],
+  );
 
   if (signal) {
-    signal.addEventListener(
-      'abort',
-      () => {
-        for (const fn of cleanups) fn();
-      },
-      { once: true },
-    );
+    signal.addEventListener('abort', () => cleanups.forEach((cleanup) => cleanup()), {
+      once: true,
+    });
   }
 
-  return () => {
-    for (const fn of cleanups) fn();
-  };
+  return () => cleanups.forEach((cleanup) => cleanup());
 }
 
 /**
@@ -321,7 +308,7 @@ export function attachWakeStrategies(
 
     if (pending === 0) {
       isAwake = true;
-      for (const cleanup of cleanups) cleanup();
+      cleanups.forEach((cleanup) => cleanup());
       onWake();
     }
   };
@@ -344,7 +331,7 @@ export function attachWakeStrategies(
   // Return a master cleanup in case the element is destroyed before waking
   return () => {
     if (!isAwake) {
-      for (const cleanup of cleanups) cleanup();
+      cleanups.forEach((cleanup) => cleanup());
     }
   };
 }
