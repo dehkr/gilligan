@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** Remove the `target` and `swap` fetch options, and stop `ctx.fetch`
 from targeting the scope host. `triggerEl` can be set to route a response through that element's `rz-target`, or place HTML manually with the exported `swap`.
+- **Breaking:** Remove store context aliasing for scopes. `rz-scope="@store"` no longer aliases store data. Reference stores directly from directives instead.
 
 ## [0.12.0] - 2026-08-13
 

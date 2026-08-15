@@ -1,6 +1,5 @@
 import { effectScope } from 'alien-signals';
 import type { RouseApp } from '../core/app';
-import { STORE_PREFIX } from '../core/constants';
 import { fail, warn } from '../core/diagnostics';
 import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
@@ -24,18 +23,8 @@ export function initScopeElement(el: HTMLElement, app: RouseApp) {
   const { scopeName, rawPayload } = scopeValue;
 
   let setup: ScopeSetup;
-  let isAlias = false;
 
-  // This enables alias scopes (context aliasing for stores). Makes a store,
-  // or a nested slice of one, the scope instance directly.
-  if (scopeName.startsWith(STORE_PREFIX)) {
-    isAlias = true;
-    setup = () => {
-      // Fetch the live proxy. Must be an object.
-      const storeData = resolveInjection(scopeName, app.stores, true);
-      return storeData || {};
-    };
-  } else if (scopeName === '') {
+  if (scopeName === '') {
     setup = () => ({});
   } else {
     const scope = app.registry.get(scopeName);
@@ -49,9 +38,8 @@ export function initScopeElement(el: HTMLElement, app: RouseApp) {
   const strategies = rzWake.getConfig(el, app);
 
   attachWakeStrategies(el, app, strategies, () => {
-    // Data can't be passed to an alias so skip `resolveInjection` in that case
-    const data = isAlias ? {} : resolveInjection(rawPayload, app.stores) || {};
-    initScopeInstance(el, app, setup, data, { isAlias });
+    const data = resolveInjection(rawPayload, app.stores) || {};
+    initScopeInstance(el, app, setup, data);
   });
 }
 
@@ -63,10 +51,9 @@ function initScopeInstance(
   app: RouseApp,
   setup: ScopeSetup,
   params: Record<string, any> = {},
-  options: { isAlias?: boolean } = {},
 ) {
   if (instanceMap.has(el)) return;
-  instanceMap.set(el, createScope(el, app, setup, params, options));
+  instanceMap.set(el, createScope(el, app, setup, params));
 }
 
 /**
@@ -108,7 +95,6 @@ function createScope(
   app: RouseApp,
   setup: ScopeSetup,
   params: Record<string, any> = {},
-  options: { isAlias?: boolean } = {},
 ) {
   let instance: any;
   let isDestroyed = false;
@@ -167,12 +153,7 @@ function createScope(
   // to the DOM. Captures effects created by bindings (text, atts, etc.) so the
   // UI auto updates.
   const stopBindingScope = effectScope(() => {
-    const { unbindDom, scan, teardown } = bindScope(
-      el,
-      instance,
-      app,
-      options.isAlias === true,
-    );
+    const { unbindDom, scan, teardown } = bindScope(el, instance, app);
     binding = { scan, teardown };
     cleanups.push(unbindDom);
   });

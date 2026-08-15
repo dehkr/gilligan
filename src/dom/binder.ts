@@ -202,15 +202,8 @@ function runCleanups(el: Element, fns: BoundCleanupFn[]): void {
  * - `scan(el)`: bind directives on a newly added node within the scope.
  * - `teardown(el)`: run cleanups for a removed node and its subtree.
  * - `unbindDom()`: tear down the whole scope (all cleanups, `disconnect`, `rz:scope:disconnect`).
- *
- * @param skipLifecycles - Skip the `connect`/`disconnect` hooks (used by alias scopes).
  */
-export function bindScope(
-  root: HTMLElement,
-  instance: Scope,
-  app: RouseApp,
-  skipLifecycles = false,
-) {
+export function bindScope(root: HTMLElement, instance: Scope, app: RouseApp) {
   const elementCleanups = new Map<Element, BoundCleanupFn[]>();
   const boundNodes = new WeakSet<Element>();
 
@@ -265,7 +258,7 @@ export function bindScope(
   // Initial scan
   scan(root);
 
-  if (typeof instance.connect === 'function' && !skipLifecycles) {
+  if (typeof instance.connect === 'function') {
     instance.connect();
   }
 
@@ -277,7 +270,7 @@ export function bindScope(
     for (const el of elementCleanups.keys()) {
       runCleanup(el);
     }
-    if (typeof instance.disconnect === 'function' && !skipLifecycles) {
+    if (typeof instance.disconnect === 'function') {
       instance.disconnect();
     }
     dispatch(root, 'rz:scope:disconnect', { instance });
