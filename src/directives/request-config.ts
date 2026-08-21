@@ -35,13 +35,8 @@ function parseRequestConfig(
     if (!key) continue;
     const val = rawVal ?? '';
 
-    // Raw CSS selector; `null` suppresses the `rouse-request` class application
-    if (key === 'indicator') {
-      config[key] = val === 'null' ? null : val;
-    }
-
     // Dynamic payload delimiters
-    else if (val.match(/^[#@{]/)) {
+    if (val.match(/^[#@{]/)) {
       config[key] = resolveInjection(val, app.stores, false);
     }
 

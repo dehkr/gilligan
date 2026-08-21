@@ -1,5 +1,6 @@
 import { queryTargets } from '../core/attributes';
 import { warn } from '../core/diagnostics';
+import { rzIndicator } from '../directives/rz-indicator';
 import { dispatch } from '../dom/events';
 import type {
   FetchConfigDetail,
@@ -112,19 +113,22 @@ export async function runRequestLifecycle(
 }
 
 /**
- * Resolves which elements get the request class: the firing element by default,
- * an `indicator` selector's matches when set, or none if value is `null`.
+ * Resolves which elements get the request class: an explicit programmatic
+ * `indicator`, else `rz-indicator` on the firing element, else the firing element
+ * itself. `null` at either level means no indicators at all.
  */
 function resolveIndicators(
   el: Element,
   root: Element,
   indicator: string | null | undefined,
 ): Element[] {
-  if (indicator === undefined) return [el];
-  if (indicator === null) return [];
+  const resolved = indicator === undefined ? rzIndicator.getConfig(el) : indicator;
 
-  const els = queryTargets(root, indicator);
-  __DEV__ && !els.length && warn(`No indicator elements match '${indicator}'.`, el);
+  if (resolved === undefined) return [el];
+  if (resolved === null) return [];
+
+  const els = queryTargets(root, resolved);
+  __DEV__ && !els.length && warn(`No indicator elements match '${resolved}'.`, el);
   return els;
 }
 

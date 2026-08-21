@@ -21,6 +21,7 @@ export type DirectiveSlug =
   | 'fetch-request'
   | 'headers'
   | 'html'
+  | 'indicator'
   | 'key'
   | 'model'
   | 'on'

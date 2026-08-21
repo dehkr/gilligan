@@ -13,6 +13,7 @@ export {
   rzRequest,
 } from './request-config';
 export { rzClass } from './rz-class';
+export { rzIndicator } from './rz-indicator';
 export { rzKey } from './rz-key';
 export { rzModel } from './rz-model';
 export { rzOn } from './rz-on';
