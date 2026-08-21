@@ -81,7 +81,10 @@ export async function runFetch(
       ...finalRequestInit,
       ...options,
       method,
-      // No triggerEl means no element to key on, so a programmatic caller opts
+      // Programmatic headers merge per key with the resolved declarative layers,
+      // matching how those layers combine with each other. `null` removes one.
+      headers: { ...finalRequestInit.headers, ...options.headers },
+      // No `triggerEl` means no element to key on, so a programmatic caller opts
       // into deduping by setting the `abortKey` option.
       abortKey:
         options.abortKey ||

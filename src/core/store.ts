@@ -253,8 +253,9 @@ export class StoreManager {
       requestOptions.body = sliceAt(data, manualConfig?.nestedPath);
     }
 
-    // Request-axis events fire from the trigger element; destination-axis
-    // (rz:store:sync:*) events keep firing from elementFor(storeName) ?? root.
+    // Request-axis events prefer the trigger element, falling back to the store's
+    // own element like the destination axis does. The fallback is deliberate: a
+    // store has a home element, unlike a bare fetch, which fires from app.root.
     const firingEl =
       manualConfig?.triggerEl ?? this.elementFor(storeName) ?? this.app.root;
 
@@ -294,6 +295,11 @@ export class StoreManager {
     try {
       const result = await request(url, requestOptions, this.app);
       handle.settle(result);
+
+      // A superseded request must not touch store data. Its snapshot is stale, so
+      // both the reconcile and the rollback target belong to a request that no
+      // longer owns the store. `finally` already leaves `loading` to the winner.
+      if (entry.activeReq !== reqToken) return result;
 
       if (result.error) {
         if (result.error.status === 'CANCELED') return result;
@@ -530,7 +536,9 @@ export class StoreManager {
         for (const pending of toNotify) {
           const listeners = pending.listeners;
           if (listeners) {
-            for (const cb of listeners) cb();
+            for (const callback of listeners) {
+              callback();
+            }
           }
         }
       });
