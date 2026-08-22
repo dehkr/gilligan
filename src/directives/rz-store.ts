@@ -5,16 +5,15 @@ import { err, warn } from '../core/diagnostics';
 import type { SyncConfig } from '../core/store';
 import type { StandaloneDirective } from '../types';
 import { rzStoreConfig } from './request-config';
-import { rzUrl } from './rz-url';
 
 const initialized = new WeakSet<HTMLScriptElement>();
 
 /**
- * Bootstraps a global reactive store from a `<script>` tag. Initializes the
- * reactive data registry and seeds the store's URL from `rz-url` if present.
+ * Bootstraps a global reactive store from a `<script>` tag. Initializes the reactive
+ * data registry and seeds the store's URL from `rz-store-config` if present.
  *
- * Push/pull triggers (`rz-push`, `rz-pull`) are wired separately, so the
- * store doesn't need to know about them.
+ * Push/pull triggers (`rz-push`, `rz-pull`) are wired separately, so the store doesn't
+ * need to know about them.
  */
 function initialize(el: HTMLScriptElement, app: RouseApp) {
   if (initialized.has(el)) return;
@@ -49,13 +48,11 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
   }
 
   const cfg: Partial<SyncConfig> = {};
-
-  const url = rzUrl.getConfig(el);
-  if (url) {
-    cfg.url = url;
-  }
-
   const storeConfig = rzStoreConfig.getConfig(el, app);
+
+  if (storeConfig.url) {
+    cfg.url = storeConfig.url;
+  }
 
   // One `method` seeds both directions, matching what the shared `rz-request`
   // base layer did before the per-action variants were removed.

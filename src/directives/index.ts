@@ -12,5 +12,4 @@ export { rzScope } from './rz-scope';
 export { rzStore } from './rz-store';
 export { rzStyle } from './rz-style';
 export { rzTarget } from './rz-target';
-export { rzUrl } from './rz-url';
 export { rzWake } from './rz-wake';

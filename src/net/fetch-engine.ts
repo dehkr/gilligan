@@ -2,7 +2,6 @@ import type { RouseApp } from '../core/app';
 import { err, warn } from '../core/diagnostics';
 import { createKey } from '../core/keys';
 import { isPlainObject } from '../core/state';
-import { resolveStoreUrl } from '../core/store';
 import { dispatch } from '../dom/events';
 import { extractFieldValues } from '../dom/forms';
 import type { RouseRequest, RouseResponse } from '../types';
@@ -47,7 +46,7 @@ export async function runFetch(
       }
     }
 
-    const url = resolveUrl(triggerEl, options, app);
+    const url = resolveUrl(triggerEl, options);
     if (!url) {
       return fallbackResponse(
         options,
@@ -180,22 +179,16 @@ async function sendAndRoute(
 }
 
 /**
- * Resolves the request URL from the options, expanding an `@store` reference.
- * Warns against `el` and returns `null` when there is no URL to resolve.
+ * Returns the request URL from the options. Warns against `el` and returns `null`
+ * when there is none.
  */
-function resolveUrl(
-  el: Element | null,
-  options: RouseRequest,
-  app: RouseApp,
-): string | null {
-  const url = options.url ? resolveStoreUrl(options.url, app.stores) : null;
-
-  if (!url) {
+function resolveUrl(el: Element | null, options: RouseRequest): string | null {
+  if (!options.url) {
     __DEV__ && warn('Invalid or missing URL for the fetch request.', ...(el ? [el] : []));
     return null;
   }
 
-  return url;
+  return options.url;
 }
 
 /** Navigates to a server-directed redirect target. */

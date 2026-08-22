@@ -20,6 +20,12 @@ from targeting the scope host. `triggerEl` can be set to route a response throug
 - **Breaking:** Remove store context aliasing for scopes. `rz-scope="@store"` no longer aliases store data. Reference stores directly from directives instead.
 - **Breaking:** Remove `rz-fetch-headers`, `rz-push-headers`, and `rz-pull-headers`.
 Use `rz-headers` to set headers declaratively.
+- **Breaking:** Remove the `rz-url` directive; subsumed by the `url` field in `rz-fetch-config` and `rz-store-config`.
+- **Breaking:** Remove `@store` references as URLs. A dynamic endpoint belongs in an
+interceptor or a programmatic call.
+- **Breaking:** Config directive values now resolve by key rather than by value shape.
+`params` and `body` accept an injection reference or inline JSON; every other key takes
+its value literally.
 
 ## [0.12.0] - 2026-08-13
 

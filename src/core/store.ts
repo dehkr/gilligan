@@ -113,26 +113,6 @@ export function resolveTarget(
 }
 
 /**
- * Resolves a store reference to a string value intended for use as a URL.
- */
-export function resolveStoreUrl(ref: string, stores: StoreManager): string | null {
-  if (!ref.startsWith(STORE_PREFIX)) return ref;
-
-  const target = parseStoreRef(ref);
-  if (!target) return null;
-
-  const storeData = stores.get(target.source);
-  const value = getNestedVal(storeData, target.nestedPath);
-
-  if (typeof value !== 'string' || !value.trim()) {
-    __DEV__ && warn(`Invalid URL. '${ref}' does not resolve to a string.`);
-    return null;
-  }
-
-  return value;
-}
-
-/**
  * The central manager for all reactive stores and their network logic.
  * Instantiated once per RouseApp to ensure isolation.
  */
@@ -224,8 +204,7 @@ export class StoreManager {
     const { data, config } = entry;
     const overrides = manualConfig?.overrides ?? {};
 
-    const rawUrl = manualConfig?.url || overrides.url || config?.url;
-    const url = rawUrl ? resolveStoreUrl(rawUrl, this) : null;
+    const url = manualConfig?.url || overrides.url || config?.url;
 
     const defaultMethod = operation === 'push' ? 'POST' : 'GET';
     const storeMethod = operation === 'push' ? config?.pushMethod : config?.pullMethod;

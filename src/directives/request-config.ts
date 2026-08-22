@@ -6,7 +6,12 @@ import { parseDirectiveValue } from '../core/parser';
 import { parseTime } from '../core/timing';
 import type { ConfigDirective, DirectiveSlug, RouseRequest } from '../types';
 
+/** Keys parsed as booleans. */
 const BOOLEAN_KEYS = ['keepalive', 'rollback-on-error', 'skip-interceptors'];
+/** Keys that can hold an object, written as an injection reference or inline JSON. */
+const OBJECT_KEYS = ['params', 'body'];
+/** Keys parsed as durations by `parseTime`. */
+const DURATION_KEYS = ['timeout'];
 
 /**
  * Factory for the two request-config directives, `rz-fetch-config` and `rz-store-config`.
@@ -21,8 +26,9 @@ function defineRequestConfigDirective(
 }
 
 /**
- * Parses a request-config directive value into a partial `RouseRequest`.
- * Shared by `rz-fetch-config` and `rz-store-config`.
+ * Parses a request-config directive value into a partial `RouseRequest`. One branch
+ * per value type: objects, booleans, durations, and literal strings for everything
+ * else. Shared by `rz-fetch-config` and `rz-store-config`.
  */
 function parseRequestConfig(
   value: string | null | undefined,
@@ -39,14 +45,16 @@ function parseRequestConfig(
     if (!key) continue;
     const val = rawVal ?? '';
 
-    // Reject rather than ignore to enforce single path via rz-headers
+    // Reject rather than ignore to enforce single channel via rz-headers
     if (key === 'headers') {
       __DEV__ && warn(`rz-${slug}: headers belong on rz-headers. Ignoring.`, el);
     }
 
-    // Dynamic payload delimiters
-    else if (val.match(/^[#@{]/)) {
-      config[key] = resolveInjection(val, app.stores, false);
+    // Objects, written as an injection reference or inline JSON
+    else if (OBJECT_KEYS.includes(key)) {
+      config[kebabToCamel(key)] = /^[#@{]/.test(val)
+        ? resolveInjection(val, app.stores, false)
+        : val;
     }
 
     // Booleans
@@ -54,12 +62,12 @@ function parseRequestConfig(
       config[kebabToCamel(key)] = val === 'true' || val === '';
     }
 
-    // timeout
-    else if (key === 'timeout') {
+    // Durations
+    else if (DURATION_KEYS.includes(key)) {
       config[kebabToCamel(key)] = parseTime(val);
     }
 
-    // RequestInit options and 'abort-key'
+    // Everything else is a literal string: url, method, abort-key, credentials
     else {
       config[kebabToCamel(key)] = val;
     }

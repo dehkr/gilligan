@@ -34,7 +34,6 @@ export type DirectiveSlug =
   | 'style'
   | 'target'
   | 'text'
-  | 'url'
   | 'wake';
 
 /** Detail for `rz:app:start`, `rz:app:ready`, and `rz:app:destroy`. */
@@ -495,7 +494,7 @@ export interface RequestError {
 
 /** Framework-specific execution and UI options. */
 export interface FetchConfig {
-  /** The request URL. When triggered declaratively, resolved from the directive subject or `rz-url`. */
+  /** The request URL. When triggered declaratively, resolved from the directive subject or `rz-fetch-config`. */
   url?: string;
   /** CSS selector for elements to receive the rouse request class for the duration of the request. */
   indicator?: string | null;
