@@ -1,18 +1,8 @@
 export { rzAttr, rzHtml, rzProp, rzText } from './bound-writers';
-export {
-  rzFetchHeaders,
-  rzHeaders,
-  rzPullHeaders,
-  rzPushHeaders,
-} from './headers-config';
 export { rzFetch, rzPull, rzPush } from './network-ops';
-export {
-  rzFetchRequest,
-  rzPullRequest,
-  rzPushRequest,
-  rzRequest,
-} from './request-config';
+export { rzFetchConfig, rzStoreConfig } from './request-config';
 export { rzClass } from './rz-class';
+export { rzHeaders } from './rz-headers';
 export { rzIndicator } from './rz-indicator';
 export { rzKey } from './rz-key';
 export { rzModel } from './rz-model';

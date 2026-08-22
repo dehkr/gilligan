@@ -3,25 +3,12 @@ import { getDirectiveValue } from '../core/attributes';
 import { warn } from '../core/diagnostics';
 import { resolveInjection } from '../core/injection';
 import { parseDirectiveValue } from '../core/parser';
-import type { ConfigDirective, DirectiveSlug } from '../types';
+import type { ConfigDirective } from '../types';
 
 /**
- * Factory for `rz-headers` and its variants.
- */
-function defineHeadersConfigDirective(
-  slug: DirectiveSlug,
-): ConfigDirective<Record<string, string | null>> {
-  return {
-    getConfig: (el, app) =>
-      parseHeadersConfig(getDirectiveValue(el, slug), el, app, slug),
-  };
-}
-
-/**
- * Parses a `rz-headers` directive value into a header record.
- * Supports object injection (`#`, `@`, `{`) or static key-value pairs.
- * A `null` value removes the header from the request; an empty string
- * is sent as is.
+ * Request headers for an element. Read by the network directives. Supports object
+ * injection (`#`, `@`, `{`) or static key-value pairs. A `null` value removes the
+ * header from the request; an empty string is sent as is.
  *
  * - `rz-headers="Tenant: 123"`
  * - `rz-headers="Rouse-Request: null"` (remove framework default)
@@ -30,11 +17,17 @@ function defineHeadersConfigDirective(
  * - `rz-headers="#auth-headers"`
  * - `rz-headers='{ "Tenant": 123 }'`
  */
+function getConfig(el: Element, app: RouseApp): Record<string, string | null> {
+  return parseHeadersConfig(getDirectiveValue(el, 'headers'), el, app);
+}
+
+/**
+ * Parses a header record from an injected object or static key-value pairs.
+ */
 function parseHeadersConfig(
   value: string | null | undefined,
   el: Element,
   app: RouseApp,
-  slug: DirectiveSlug = 'headers',
 ): Record<string, string | null> {
   if (!value) return {};
 
@@ -49,7 +42,7 @@ function parseHeadersConfig(
       }
     } else {
       __DEV__ &&
-        warn(`rz-${slug}: payload '${value}' does not resolve to an object.`, el);
+        warn(`rz-headers: payload '${value}' does not resolve to an object.`, el);
     }
     return headers;
   }
@@ -61,7 +54,7 @@ function parseHeadersConfig(
     if (val === null) {
       __DEV__ &&
         warn(
-          `rz-${slug}: header '${key}' has no value. Write '${key}: <value>', or '${key}: null' to remove it.`,
+          `rz-headers: header '${key}' has no value. Write '${key}: <value>', or '${key}: null' to remove it.`,
           el,
         );
       continue;
@@ -73,7 +66,6 @@ function parseHeadersConfig(
   return headers;
 }
 
-export const rzHeaders = defineHeadersConfigDirective('headers');
-export const rzPushHeaders = defineHeadersConfigDirective('push-headers');
-export const rzFetchHeaders = defineHeadersConfigDirective('fetch-headers');
-export const rzPullHeaders = defineHeadersConfigDirective('pull-headers');
+export const rzHeaders = { getConfig } as const satisfies ConfigDirective<
+  Record<string, string | null>
+>;

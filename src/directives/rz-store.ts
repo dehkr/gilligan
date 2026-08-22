@@ -4,7 +4,7 @@ import { type HttpMethod, isHttpMethod } from '../core/constants';
 import { err, warn } from '../core/diagnostics';
 import type { SyncConfig } from '../core/store';
 import type { StandaloneDirective } from '../types';
-import { rzPullRequest, rzPushRequest, rzRequest } from './request-config';
+import { rzStoreConfig } from './request-config';
 import { rzUrl } from './rz-url';
 
 const initialized = new WeakSet<HTMLScriptElement>();
@@ -55,22 +55,18 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
     cfg.url = url;
   }
 
-  const reqBase = rzRequest.getConfig(el, app);
-  const reqPush = rzPushRequest.getConfig(el, app);
-  const reqPull = rzPullRequest.getConfig(el, app);
+  const storeConfig = rzStoreConfig.getConfig(el, app);
 
-  const pushMethod = resolveMethod(reqPush.method ?? reqBase.method, el);
-  if (pushMethod) {
-    cfg.pushMethod = pushMethod;
-  }
-
-  const pullMethod = resolveMethod(reqPull.method ?? reqBase.method, el);
-  if (pullMethod) {
-    cfg.pullMethod = pullMethod;
+  // One `method` seeds both directions, matching what the shared `rz-request`
+  // base layer did before the per-action variants were removed.
+  const method = resolveMethod(storeConfig.method, el);
+  if (method) {
+    cfg.pushMethod = method;
+    cfg.pullMethod = method;
   }
 
   // Rollback is push-only
-  const rollbackOnError = reqPush.rollbackOnError ?? reqBase.rollbackOnError;
+  const rollbackOnError = storeConfig.rollbackOnError;
   if (rollbackOnError !== undefined) {
     cfg.rollbackOnError = rollbackOnError;
   }

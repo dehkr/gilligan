@@ -1,17 +1,7 @@
 import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
-import {
-  rzFetchHeaders,
-  rzHeaders,
-  rzPullHeaders,
-  rzPushHeaders,
-} from '../directives/headers-config';
-import {
-  rzFetchRequest,
-  rzPullRequest,
-  rzPushRequest,
-  rzRequest,
-} from '../directives/request-config';
+import { rzFetchConfig, rzStoreConfig } from '../directives/request-config';
+import { rzHeaders } from '../directives/rz-headers';
 import type { NetworkAction, RequestError, RouseRequest, RouseResponse } from '../types';
 import { preparePayload } from './payload';
 import { fallbackResponse, mapCatchError, normalizeResponse } from './response';
@@ -20,18 +10,6 @@ interface AbortEntry {
   controller: AbortController;
   ownerId: symbol;
 }
-
-const REQUEST_VARIANTS = {
-  fetch: rzFetchRequest,
-  push: rzPushRequest,
-  pull: rzPullRequest,
-} as const;
-
-const HEADERS_VARIANTS = {
-  fetch: rzFetchHeaders,
-  push: rzPushHeaders,
-  pull: rzPullHeaders,
-} as const;
 
 const abortRegistry = new Map<string | symbol, AbortEntry>();
 
@@ -178,10 +156,8 @@ export async function request<T = any>(
  * directive-driven config layers in priority order (later wins):
  *
  *   1. global defaults (`app.config.*`)
- *   2. `rz-request` on target element (push/pull only)
- *   3. `rz-<push|pull>-request` on target element (push/pull only)
- *   4. `rz-request` on triggering element
- *   5. `rz-<action>-request` on triggering element
+ *   2. `rz-fetch-config`/`rz-store-config` on target element (push/pull only)
+ *   3. the same directive on the triggering element
  *
  * Headers follow the same chain, merged separately so per-key overrides win
  * without losing unrelated header keys from earlier layers.
@@ -201,8 +177,7 @@ export function resolveRequestConfig(
     credentials: app.config.credentials,
   };
 
-  const requestVariant = REQUEST_VARIANTS[action];
-  const headersVariant = HEADERS_VARIANTS[action];
+  const configDirective = action === 'fetch' ? rzFetchConfig : rzStoreConfig;
 
   const layers: Partial<RouseRequest>[] = [];
   const headerLayers: (Record<string, string | null> | undefined)[] = [];
@@ -223,10 +198,8 @@ export function resolveRequestConfig(
   addLayer(globalConfig);
 
   const applyConfig = (el: Element) => {
-    addLayer(rzRequest.getConfig(el, app));
+    addLayer(configDirective.getConfig(el, app));
     addHeaders(rzHeaders.getConfig(el, app));
-    addLayer(requestVariant.getConfig(el, app));
-    addHeaders(headersVariant.getConfig(el, app));
   };
 
   if (targetEl && targetEl !== triggerEl) {
