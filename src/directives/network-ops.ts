@@ -108,7 +108,7 @@ function applySubmitterOverrides(baseOpts: RouseRequest, e?: Event): RouseReques
  */
 function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[]) {
   const cleanups: VoidFn[] = [];
-  const elementUrl = rzFetchConfig.getConfig(el, app).url || nativeUrl(el);
+  const elementUrl = rzFetchConfig.getConfig(el).url || nativeUrl(el);
 
   // A form without a URL at init can still get one at submit time from the
   // submitter's `formaction`, so bind anyway and validate on dispatch.

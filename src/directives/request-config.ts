@@ -1,15 +1,15 @@
-import type { RouseApp } from '../core/app';
 import { getDirectiveValue } from '../core/attributes';
 import { warn } from '../core/diagnostics';
-import { resolveInjection } from '../core/injection';
-import { parseDirectiveValue } from '../core/parser';
+import { parseDirectiveValue, safeJSONParse } from '../core/parser';
 import { parseTime } from '../core/timing';
 import type { ConfigDirective, DirectiveSlug, RouseRequest } from '../types';
 
 /** Keys parsed as booleans. */
 const BOOLEAN_KEYS = ['keepalive', 'rollback-on-error', 'skip-interceptors'];
-/** Keys that can hold an object, written as an injection reference or inline JSON. */
-const OBJECT_KEYS = ['params', 'body'];
+/** Keys that must hold an object, written as inline JSON. */
+const OBJECT_KEYS = ['params'];
+/** Keys that hold an object when written as inline JSON, and a literal otherwise. */
+const ANY_KEYS = ['body'];
 /** Keys parsed as durations by `parseTime`. */
 const DURATION_KEYS = ['timeout'];
 
@@ -20,8 +20,7 @@ function defineRequestConfigDirective(
   slug: DirectiveSlug,
 ): ConfigDirective<Partial<RouseRequest>> {
   return {
-    getConfig: (el, app) =>
-      parseRequestConfig(getDirectiveValue(el, slug), app, el, slug),
+    getConfig: (el) => parseRequestConfig(getDirectiveValue(el, slug), el, slug),
   };
 }
 
@@ -32,7 +31,6 @@ function defineRequestConfigDirective(
  */
 function parseRequestConfig(
   value: string | null | undefined,
-  app: RouseApp,
   el: Element,
   slug: DirectiveSlug,
 ): Partial<RouseRequest> {
@@ -50,11 +48,24 @@ function parseRequestConfig(
       __DEV__ && warn(`rz-${slug}: headers belong on rz-headers. Ignoring.`, el);
     }
 
-    // Objects, written as an injection reference or inline JSON
+    // Objects, written as inline JSON
     else if (OBJECT_KEYS.includes(key)) {
-      config[kebabToCamel(key)] = /^[#@{]/.test(val)
-        ? resolveInjection(val, app.stores, false)
-        : val;
+      const obj = parseObject(val, key, el, slug);
+      if (obj !== undefined) {
+        config[kebabToCamel(key)] = obj;
+      }
+    }
+
+    // Inline JSON when it looks like an object, otherwise a literal
+    else if (ANY_KEYS.includes(key)) {
+      if (!isObjectLiteral(val)) {
+        config[kebabToCamel(key)] = val;
+      } else {
+        const obj = parseObject(val, key, el, slug);
+        if (obj !== undefined) {
+          config[kebabToCamel(key)] = obj;
+        }
+      }
     }
 
     // Booleans
@@ -74,6 +85,28 @@ function parseRequestConfig(
   }
 
   return config as Partial<RouseRequest>;
+}
+
+function isObjectLiteral(val: string) {
+  return val.startsWith('{');
+}
+
+/**
+ * Parses an inline JSON object. Returns undefined when the value isn't one, so the
+ * caller can leave the key unset rather than write a malformed config value.
+ */
+function parseObject(val: string, key: string, el: Element, slug: DirectiveSlug) {
+  if (isObjectLiteral(val)) {
+    try {
+      return safeJSONParse(val);
+    } catch {
+      __DEV__ && warn(`rz-${slug}: '${key}' is not valid JSON: ${val}`, el);
+      return undefined;
+    }
+  }
+
+  __DEV__ && warn(`rz-${slug}: '${key}' must be an inline JSON object. Got: ${val}`, el);
+  return undefined;
 }
 
 function kebabToCamel(str: string) {

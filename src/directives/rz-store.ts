@@ -48,7 +48,7 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
   }
 
   const cfg: Partial<SyncConfig> = {};
-  const storeConfig = rzStoreConfig.getConfig(el, app);
+  const storeConfig = rzStoreConfig.getConfig(el);
 
   if (storeConfig.url) {
     cfg.url = storeConfig.url;

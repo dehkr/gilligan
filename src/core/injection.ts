@@ -1,7 +1,7 @@
 import type { AnyFn, BindableValue, DirectiveSlug, HandlerCtx, Scope } from '../types';
-import { KEY_BLOCKLIST, STORE_PREFIX } from './constants';
+import { STORE_PREFIX } from './constants';
 import { err, warn } from './diagnostics';
-import { parseDataSourcePath, parseStoreRef } from './parser';
+import { parseDataSourcePath, parseStoreRef, safeJSONParse } from './parser';
 import { getNestedVal } from './path';
 import { renderCtxOf } from './render-context';
 import { resolveState } from './resolve';
@@ -9,28 +9,12 @@ import { isPlainObject } from './state';
 import type { StoreManager } from './store';
 
 /**
- * Parse JSON with recursive check that blocks prototype pollution keys.
- */
-function safeJSONParse(text: string): unknown {
-  return JSON.parse(text, (key, value) => {
-    if (KEY_BLOCKLIST.includes(key)) {
-      __DEV__ && warn(`Blocked forbidden key in JSON: '${key}'.`);
-      return undefined;
-    }
-    return value;
-  });
-}
-
-/**
  * Resolves a payload string into a JavaScript value. Uses heuristics to determine
  * if the payload is inline JSON, a DOM ID, or a global store.
- *
- * @param requireObject - If true (default), enforces that the resolved value is an object.
  */
 export function resolveInjection(
   input: string | undefined | null,
   storeManager: StoreManager,
-  requireObject = true,
 ): Record<string, any> | undefined {
   const value = input?.trim();
   if (!value) return undefined;
@@ -85,7 +69,7 @@ export function resolveInjection(
 
   // Final check
   if (resolvedValue !== undefined) {
-    if (!requireObject || isPlainObject(resolvedValue)) {
+    if (isPlainObject(resolvedValue)) {
       return resolvedValue;
     }
     __DEV__ && warn(`Invalid payload: '${value}'. Data must resolve to an object.`);

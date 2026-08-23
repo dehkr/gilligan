@@ -198,8 +198,8 @@ export function resolveRequestConfig(
   addLayer(globalConfig);
 
   const applyConfig = (el: Element) => {
-    addLayer(configDirective.getConfig(el, app));
-    addHeaders(rzHeaders.getConfig(el, app));
+    addLayer(configDirective.getConfig(el));
+    addHeaders(rzHeaders.getConfig(el));
   };
 
   if (targetEl && targetEl !== triggerEl) {

@@ -10,6 +10,7 @@ import {
   isHttpMethod,
   isListenTarget,
   isPatchAction,
+  KEY_BLOCKLIST,
   type PatchAction,
   STORE_PREFIX,
 } from './constants';
@@ -431,6 +432,19 @@ function splitOnSafeDelimiter(
 
   parts.push(text.slice(start));
   return parts;
+}
+
+/**
+ * Parse JSON with recursive check that blocks prototype pollution keys.
+ */
+export function safeJSONParse(text: string): unknown {
+  return JSON.parse(text, (key, value) => {
+    if (KEY_BLOCKLIST.includes(key)) {
+      __DEV__ && warn(`Blocked forbidden key in JSON: '${key}'.`);
+      return undefined;
+    }
+    return value;
+  });
 }
 
 /**

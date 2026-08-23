@@ -1,54 +1,48 @@
-import type { RouseApp } from '../core/app';
 import { getDirectiveValue } from '../core/attributes';
 import { warn } from '../core/diagnostics';
-import { resolveInjection } from '../core/injection';
-import { parseDirectiveValue } from '../core/parser';
+import { parseDirectiveValue, safeJSONParse } from '../core/parser';
 import type { ConfigDirective } from '../types';
 
 /**
- * Request headers for an element. Read by the network directives. Supports object
- * injection (`#`, `@`, `{`) or static key-value pairs. A `null` value removes the
- * header from the request; an empty string is sent as is.
+ * Request headers for an element. Read by the network directives. Written as key-value
+ * pairs, or as an inline JSON object. A `null` value removes the header from the
+ * request; an empty string is sent as is. Values that contain a comma should be
+ * wrapped in quotes.
  *
  * - `rz-headers="Tenant: 123"`
- * - `rz-headers="Rouse-Request: null"` (remove framework default)
- * - `rz-headers="X-Blank: ''"` (send with an empty value)
- * - `rz-headers="@session.authHeaders"`
- * - `rz-headers="#auth-headers"`
+ * - `rz-headers="Rouse-Request: null"`
+ * - `rz-headers="X-Blank: ''"`
+ * - `rz-headers="Accept: 'text/html, application/json'"`
  * - `rz-headers='{ "Tenant": 123 }'`
  */
-function getConfig(el: Element, app: RouseApp): Record<string, string | null> {
-  return parseHeadersConfig(getDirectiveValue(el, 'headers'), el, app);
+function getConfig(el: Element): Record<string, string | null> {
+  return parseHeadersConfig(getDirectiveValue(el, 'headers'), el);
 }
 
 /**
- * Parses a header record from an injected object or static key-value pairs.
+ * Parses a header record from an inline JSON object or static key-value pairs.
  */
 function parseHeadersConfig(
   value: string | null | undefined,
   el: Element,
-  app: RouseApp,
 ): Record<string, string | null> {
   if (!value) return {};
 
-  // Object injection
-  if (value.match(/^[#@{]/)) {
-    const resolvedObject = resolveInjection(value, app.stores, false);
-    const headers: Record<string, string | null> = {};
+  const headers: Record<string, string | null> = {};
 
-    if (resolvedObject && typeof resolvedObject === 'object') {
-      for (const [k, v] of Object.entries(resolvedObject)) {
+  // Inline JSON
+  if (value.startsWith('{')) {
+    try {
+      for (const [k, v] of Object.entries(safeJSONParse(value) as object)) {
         headers[k] = v == null ? null : String(v);
       }
-    } else {
-      __DEV__ &&
-        warn(`rz-headers: payload '${value}' does not resolve to an object.`, el);
+    } catch {
+      __DEV__ && warn(`rz-headers: value is not valid JSON: ${value}`, el);
     }
     return headers;
   }
 
   // Static key-value pairs
-  const headers: Record<string, string | null> = {};
   for (const [key, val] of parseDirectiveValue(value)) {
     if (!key) continue;
     if (val === null) {
