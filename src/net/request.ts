@@ -2,7 +2,7 @@ import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
 import { rzFetchConfig } from '../directives/rz-fetch-config';
 import { rzHeaders } from '../directives/rz-headers';
-import type { RequestError, RouseRequest, RouseResponse } from '../types';
+import type { FetchRequest, RequestError, RouseRequest, RouseResponse } from '../types';
 import { preparePayload } from './payload';
 import { fallbackResponse, mapCatchError, normalizeResponse } from './response';
 
@@ -168,8 +168,8 @@ export async function request<T = any>(
 export function resolveRequestConfig(
   triggerEl: Element | null,
   app: RouseApp,
-): Partial<RouseRequest> {
-  const config: Partial<RouseRequest> = {
+): Partial<FetchRequest> {
+  const config: Partial<FetchRequest> = {
     credentials: app.config.credentials,
     ...(triggerEl ? rzFetchConfig.getConfig(triggerEl) : {}),
   };

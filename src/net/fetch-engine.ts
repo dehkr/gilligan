@@ -4,7 +4,7 @@ import { createKey } from '../core/keys';
 import { isPlainObject } from '../core/state';
 import { dispatch } from '../dom/events';
 import { extractFieldValues } from '../dom/forms';
-import type { RouseRequest, RouseResponse } from '../types';
+import type { FetchRequest, RouseResponse } from '../types';
 import { type LifecycleHandle, PREVENTED, runRequestLifecycle } from './lifecycle';
 import { request, resolveRequestConfig } from './request';
 import { fallbackResponse, isFileType, isJsonType } from './response';
@@ -23,7 +23,7 @@ const abortKeys = new WeakMap<Element, string>();
  */
 export async function runFetch(
   app: RouseApp,
-  options: RouseRequest,
+  options: FetchRequest,
 ): Promise<RouseResponse> {
   const triggerEl = options.triggerEl ?? null;
   // Lifecycle events always need a node to fire from, triggerEl or not
@@ -76,7 +76,7 @@ export async function runFetch(
     }
 
     // Final unified config object
-    const finalOptions: RouseRequest = {
+    const finalOptions: FetchRequest = {
       ...finalRequestInit,
       ...options,
       method,
@@ -120,7 +120,7 @@ async function sendAndRoute(
   hostEl: Element,
   triggerEl: Element | null,
   url: string,
-  options: RouseRequest,
+  options: FetchRequest,
   app: RouseApp,
   handle: LifecycleHandle,
 ): Promise<RouseResponse> {
@@ -182,7 +182,7 @@ async function sendAndRoute(
  * Returns the request URL from the options. Warns against `el` and returns `null`
  * when there is none.
  */
-function resolveUrl(el: Element | null, options: RouseRequest): string | null {
+function resolveUrl(el: Element | null, options: FetchRequest): string | null {
   if (!options.url) {
     __DEV__ && warn('Invalid or missing URL for the fetch request.', ...(el ? [el] : []));
     return null;

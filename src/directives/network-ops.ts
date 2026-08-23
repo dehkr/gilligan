@@ -9,7 +9,7 @@ import { dispatchTrigger, isNativeNavigation } from '../dom/events';
 import { runFetch } from '../net/fetch-engine';
 import type {
   DirectiveSlug,
-  RouseRequest,
+  FetchRequest,
   StandaloneDirective,
   TriggerDef,
   TriggerSubjectPair,
@@ -84,8 +84,8 @@ function nativeUrl(el: Element): string {
  * Extracts `formaction` and `formmethod` from the button that triggered a
  * submit event to override the form's default request configuration.
  */
-function applySubmitterOverrides(baseOpts: RouseRequest, e?: Event): RouseRequest {
-  const opts: RouseRequest = { ...baseOpts };
+function applySubmitterOverrides(baseOpts: FetchRequest, e?: Event): FetchRequest {
+  const opts: FetchRequest = { ...baseOpts };
   const sub = e instanceof SubmitEvent ? e.submitter : null;
 
   if (sub) {

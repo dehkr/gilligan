@@ -553,7 +553,7 @@ export type RouseRequest = FetchRequest & SyncConfig;
  */
 export type RouseFetch = (
   resource: string,
-  options?: RouseRequest,
+  options?: FetchRequest,
 ) => Promise<RouseResponse>;
 
 /** The enhanced response object returned by `ctx.fetch` and `request()`. */

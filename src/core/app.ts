@@ -27,11 +27,11 @@ import { runFetch } from '../net/fetch-engine';
 import type {
   BoundOn,
   ErrorInterceptor,
+  FetchRequest,
   InterceptorPhase,
   RequestInterceptor,
   ResponseInterceptor,
   RouseFetch,
-  RouseRequest,
   ScopeSetup,
   VoidFn,
 } from '../types';
@@ -330,7 +330,7 @@ export class RouseApp {
    * @param url - The URL to fetch.
    * @param options - Network configuration. `triggerEl` marks an originating element.
    */
-  private async _fetch(url: string, options: RouseRequest = {}) {
+  private async _fetch(url: string, options: FetchRequest = {}) {
     return runFetch(this, { ...options, url });
   }
 

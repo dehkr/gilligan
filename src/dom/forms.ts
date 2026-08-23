@@ -1,4 +1,4 @@
-import type { RouseRequest } from '../types';
+import type { FetchRequest } from '../types';
 
 /**
  * Extracts values from standalone inputs and attaches them to the
@@ -7,7 +7,7 @@ import type { RouseRequest } from '../types';
 export function extractFieldValues(
   el: Element,
   method: string,
-  config: Partial<RouseRequest>,
+  config: Partial<FetchRequest>,
 ): void {
   if (
     !(
