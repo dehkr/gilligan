@@ -66,7 +66,7 @@ function routeToStore(app: RouseApp, stores: string[], payload: any) {
 
     const beforeEvent = dispatch(
       targetEl,
-      'rz:store:sync:before',
+      'rz:store:patch:before',
       { storeName, operation: 'fetch', data, payload },
       { cancelable: true },
     );
@@ -75,6 +75,6 @@ function routeToStore(app: RouseApp, stores: string[], payload: any) {
 
     app.stores.update(storeName, beforeEvent.detail.payload as object);
     app.stores._markSynced(storeName);
-    dispatch(targetEl, 'rz:store:sync', { storeName, operation: 'fetch', data });
+    dispatch(targetEl, 'rz:store:patch', { storeName, operation: 'fetch', data });
   }
 }

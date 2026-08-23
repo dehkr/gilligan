@@ -128,38 +128,38 @@ export interface PushPullResultDetail {
   result: RouseResponse;
 }
 
-/** Shared fields present on every `rz:store:sync:*` event detail. */
-export interface BaseStoreSync {
-  /** Name of the store being synced. */
+/** Shared fields present on every `rz:store:patch:*` event detail. */
+export interface BaseStorePatch {
+  /** Name of the store being patched. */
   storeName: string;
-  /** Network operation that initiated the sync. */
+  /** Network operation that produced the payload. */
   operation: 'push' | 'pull' | 'fetch';
-  /** Dot-path of the targeted slice, when only part of the store was synced. */
+  /** Dot-path of the targeted slice, when only part of the store was patched. */
   nestedPath?: string;
   /** Patch action applied to the store data (`replace` or `merge`). */
   action?: PatchAction;
 }
 
-/** Detail for `rz:store:sync`. */
-export interface StoreSyncDetail extends BaseStoreSync {
+/** Detail for `rz:store:patch`. */
+export interface StorePatchDetail extends BaseStorePatch {
   /** The store's local data after the successful patch. */
   data: any;
-  /** The response that drove the sync. */
+  /** The response that drove the patch. */
   response?: RouseResponse;
   /** The server payload applied to the store, when provided. */
   payload?: any;
 }
 
-/** Detail for `rz:store:sync:before`. */
-export interface StoreSyncBeforeDetail extends BaseStoreSync {
+/** Detail for `rz:store:patch:before`. */
+export interface StorePatchBeforeDetail extends BaseStorePatch {
   /** The store's current local data, about to be patched. */
   data: any;
   /** The server payload about to be applied, when provided. */
   payload?: any;
 }
 
-/** Detail for `rz:store:sync:skipped`. */
-export interface StoreSyncSkippedDetail extends BaseStoreSync {
+/** Detail for `rz:store:patch:skipped`. */
+export interface StorePatchSkippedDetail extends BaseStorePatch {
   /** The local slice with unsaved edits that was kept. */
   localData: any;
   /** The incoming server slice that was not applied. */
@@ -168,8 +168,8 @@ export interface StoreSyncSkippedDetail extends BaseStoreSync {
   response: RouseResponse;
 }
 
-/** Detail for `rz:store:sync:rollback`. */
-export interface StoreSyncRollbackDetail extends BaseStoreSync {
+/** Detail for `rz:store:patch:rollback`. */
+export interface StorePatchRollbackDetail extends BaseStorePatch {
   /** The store's local data after the rollback (now equal to the last-good snapshot). */
   data: any;
   /** The last-good snapshot the state was reverted to. */
@@ -256,14 +256,14 @@ export interface LifecycleEventMap {
   'rz:pull:error': PushPullResultDetail;
   /** Fires when the pull settles, after success/error/abort. */
   'rz:pull:end': PushPullLifecycleDetail;
-  /** Fires before a sync result is applied to the local store, on both push and pull. Check `detail.operation` for direction. */
-  'rz:store:sync:before': StoreSyncBeforeDetail;
-  /** Fires after a push or pull successfully syncs the store. Check `detail.operation` for direction. */
-  'rz:store:sync': StoreSyncDetail;
-  /** Fires when the response carries server data but the store was edited while the request was in flight, so the server data is not applied and the local edit is kept. Both push and pull. */
-  'rz:store:sync:skipped': StoreSyncSkippedDetail;
+  /** Fires before a payload is applied to the local store; cancelable, and `payload` is mutable. Check `detail.operation` for what produced it. */
+  'rz:store:patch:before': StorePatchBeforeDetail;
+  /** Fires after a payload has been applied to the local store. Check `detail.operation` for what produced it. */
+  'rz:store:patch': StorePatchDetail;
+  /** Fires when the response carries server data but the store was edited while the request was in flight, so the server data is not applied and the local edit is kept. Push and pull only. */
+  'rz:store:patch:skipped': StorePatchSkippedDetail;
   /** Fires after `rz:push:error` when `rollbackOnError` reverts local state to the last-good snapshot. */
-  'rz:store:sync:rollback': StoreSyncRollbackDetail;
+  'rz:store:patch:rollback': StorePatchRollbackDetail;
   /** Fires before the swap executes; cancelable. Listeners can mutate `payload`. */
   'rz:dom:swap:before': DomSwapDetail;
   /** Fires after the swap has been applied to the DOM. */
@@ -273,8 +273,8 @@ export interface LifecycleEventMap {
 /** Union of every lifecycle event name the framework can dispatch. */
 export type LifecycleEvent = keyof LifecycleEventMap;
 
-/** The `rz:store:sync*` subset, dispatched by `StoreManager`. */
-export type StoreSyncEvent = Extract<LifecycleEvent, `rz:store:sync${string}`>;
+/** The `rz:store:patch*` subset, fired from a store's element. */
+export type StorePatchEvent = Extract<LifecycleEvent, `rz:store:patch${string}`>;
 
 /** Any value that a reactive directive can bind to. Objects are used for conditional class/style maps; primitives for direct output. */
 export type BindableValue =

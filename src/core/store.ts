@@ -7,7 +7,7 @@ import type {
   LifecycleEventMap,
   RouseRequest,
   RouseResponse,
-  StoreSyncEvent,
+  StorePatchEvent,
   SyncRequest,
   VoidFn,
 } from '../types';
@@ -243,7 +243,7 @@ export class StoreManager {
     entry.lastGood = clone(data);
   }
 
-  private _dispatchSyncEvent<E extends StoreSyncEvent>(
+  private _dispatchPatchEvent<E extends StorePatchEvent>(
     entry: StoreEntry,
     eventName: E,
     detail: LifecycleEventMap[E],
@@ -425,9 +425,9 @@ export class StoreManager {
       this._clearDirtyMatching(status, data, snapshot, nestedPath);
     }
 
-    const beforeEvent = this._dispatchSyncEvent(
+    const beforeEvent = this._dispatchPatchEvent(
       entry,
-      'rz:store:sync:before',
+      'rz:store:patch:before',
       {
         storeName,
         operation,
@@ -452,7 +452,7 @@ export class StoreManager {
 
       // Local state moved mid-flight; keep the edit and skip the echo
       if (!deepEqual(localSlice, snapSlice)) {
-        this._dispatchSyncEvent(entry, 'rz:store:sync:skipped', {
+        this._dispatchPatchEvent(entry, 'rz:store:patch:skipped', {
           storeName,
           operation,
           localData: localSlice,
@@ -473,7 +473,7 @@ export class StoreManager {
 
     this._updateLastGood(entry, data);
 
-    this._dispatchSyncEvent(entry, 'rz:store:sync', {
+    this._dispatchPatchEvent(entry, 'rz:store:patch', {
       storeName,
       operation,
       data,
@@ -575,7 +575,7 @@ export class StoreManager {
 
     this._clearDirtyMatching(status, data, lastGood, nestedPath);
 
-    this._dispatchSyncEvent(entry, 'rz:store:sync:rollback', {
+    this._dispatchPatchEvent(entry, 'rz:store:patch:rollback', {
       storeName,
       operation: 'push',
       data,
