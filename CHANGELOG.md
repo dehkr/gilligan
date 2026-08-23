@@ -11,13 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add the `rz-indicator` directive. Takes a CSS selector for elements that receive the `rouse-request` class while a request from the host element is in flight.
 - Add `app.stores.deposit(name, payload, options?)`, the programmatic form of routing a JSON response into a store with `rz-target="@store"`.
-- Send four protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, `Rouse-Path` (when syncing a slice), and `Rouse-Action`.
-- Honor a `Rouse-Action` response header (`replace` or `merge`) when writing a payload into a store; takes precedence over store config.
+- Send four protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, `Rouse-Path` (when syncing a slice), and `Rouse-Store-Action`.
+- Honor a `Rouse-Store-Action` response header (`replace` or `merge`) when writing a payload into a store; takes precedence over store config.
 
 ### Changed
 
 - **Breaking:** Consolidate the request-config directives. `rz-request` and `rz-fetch-request` become `rz-fetch-config`; `rz-push-request` and `rz-pull-request` become `rz-store-config` on the store element. `rz-push` and `rz-pull` are configured on the store, not on the trigger
-- **Breaking:** Drop the patch action from `rz-push` and `rz-pull` values. `rz-push="click: merge @cart"` becomes `rz-push="click: @cart"` plus either a `Rouse-Action: merge` response header (preferred) or `rz-store-config="action: merge"`.
+- **Breaking:** Drop the patch action from `rz-push` and `rz-pull` values. `rz-push="click: merge @cart"` becomes `rz-push="click: @cart"` plus either a `Rouse-Store-Action: merge` response header (preferred) or `rz-store-config="action: merge"`.
 - **Breaking:** Change the store's `method` option to `push-method`. Pull is always `GET`, so a bare `method` implied it affected both directions.
 - **Breaking:** Stop resolving direct `@store` and `#json-id` references in config values. Config directive values are literal text. `params` and `body` accept an inline JSON object; every other key takes its value as written.
 - **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.

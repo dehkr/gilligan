@@ -104,7 +104,7 @@ function syncHeaders(
   const headers: Record<string, string> = {
     'Rouse-Sync': operation,
     'Rouse-Store': storeName,
-    'Rouse-Action': action,
+    'Rouse-Store-Action': action,
   };
 
   if (nestedPath) {
@@ -115,18 +115,18 @@ function syncHeaders(
 }
 
 /**
- * Reads a `Rouse-Action` response header. Returns undefined when the server didn't
+ * Reads a `Rouse-Store-Action` response header. Returns undefined when the server didn't
  * declare one, leaving the caller's own default in play. The server is the only
  * party that knows whether it sent the whole document or a partial.
  */
 function resolveResponseAction(result: RouseResponse): PatchAction | undefined {
-  const header = result.headers?.['rouse-action'];
+  const header = result.headers?.['rouse-store-action'];
   if (!header) return undefined;
   if (isPatchAction(header)) {
     return header.toLowerCase() as PatchAction;
   }
 
-  __DEV__ && warn(`Ignoring unknown 'Rouse-Action' response header: '${header}'.`);
+  __DEV__ && warn(`Ignoring unknown 'Rouse-Store-Action' response header: '${header}'.`);
   return undefined;
 }
 
@@ -699,7 +699,7 @@ export class StoreManager {
    * `rz-target` does. Fires the same events a push or pull fires, so a listener
    * sees one shape whatever produced the payload.
    *
-   * The action comes from the response's `Rouse-Action` header, then `options.action`,
+   * The action comes from the response's `Rouse-Store-Action` header, then `options.action`,
    * then the store's configured action, then `replace`. None of them change the
    * store's configuration.
    *
