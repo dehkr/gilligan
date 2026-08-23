@@ -115,22 +115,19 @@ function syncHeaders(
 }
 
 /**
- * Resolves the patch action for a response. A `Rouse-Action` response header wins
- * over the client's intent: only the server knows whether it sent the whole
- * document or a partial.
+ * Reads a `Rouse-Action` response header. Returns undefined when the server didn't
+ * declare one, leaving the caller's own default in play. The server is the only
+ * party that knows whether it sent the whole document or a partial.
  */
-function resolveResponseAction(
-  result: RouseResponse,
-  fallback: PatchAction,
-): PatchAction {
+function resolveResponseAction(result: RouseResponse): PatchAction | undefined {
   const header = result.headers?.['rouse-action'];
-  if (!header) return fallback;
+  if (!header) return undefined;
   if (isPatchAction(header)) {
     return header.toLowerCase() as PatchAction;
   }
 
   __DEV__ && warn(`Ignoring unknown 'Rouse-Action' response header: '${header}'.`);
-  return fallback;
+  return undefined;
 }
 
 /**
@@ -414,7 +411,7 @@ export class StoreManager {
   ) {
     const { name: storeName, data, status, config } = entry;
 
-    const action = resolveResponseAction(result, requestedAction(manualConfig, config));
+    const action = resolveResponseAction(result) ?? requestedAction(manualConfig, config);
     const nestedPath = manualConfig?.nestedPath;
 
     // Request-scoped, not response-scoped: a 200 means the data reached the server,
@@ -519,17 +516,6 @@ export class StoreManager {
     });
   }
 
-  /**
-   * Marks a store server-synced. Used by the router's deposit path, which is
-   * server contact but goes through `update()` (a local-mutation primitive).
-   */
-  _markSynced(storeName: string) {
-    const entry = this._stores.get(storeName);
-    if (entry) {
-      entry.status.lastSync = Date.now();
-    }
-  }
-
   private _withPatchGuard(fn: VoidFn) {
     this._isPatching = true;
     try {
@@ -543,6 +529,17 @@ export class StoreManager {
     for (const key of Object.keys(entry.status.dirty)) {
       delete entry.status.dirty[key];
     }
+  }
+
+  /**
+   * Patches the store's data, then makes it the new baseline: both restore targets
+   * (`reset()` and rollback) and the dirty flags are refreshed to match.
+   */
+  private _adoptState(entry: StoreEntry, state: object, action: PatchAction) {
+    this._withPatchGuard(() => patchState(entry.data, state, action));
+    entry.initial = clone(entry.data);
+    this._updateLastGood(entry, entry.data);
+    this._clearAllDirty(entry);
   }
 
   private _maybeRollback(
@@ -688,22 +685,67 @@ export class StoreManager {
     }
 
     const action = config?.action || entry.config?.action || 'replace';
-
-    this._withPatchGuard(() => patchState(entry.data, state, action));
-
-    // Snapshots track the store's data, not the incoming payload. Under `merge` the
-    // two differ, and both are restore targets: `initial` for reset, `lastGood` for
-    // rollback. Writing the partial here would make either restore a partial store.
-    entry.initial = clone(entry.data);
-    this._updateLastGood(entry, entry.data);
-
-    this._clearAllDirty(entry);
+    this._adoptState(entry, state, action);
 
     if (config) {
       this._setConfig(entry, config);
     }
 
     return entry.data;
+  }
+
+  /**
+   * Writes a whole payload into a store, the way a fetch response routed by
+   * `rz-target` does. Fires the same events a push or pull fires, so a listener
+   * sees one shape whatever produced the payload.
+   *
+   * The action comes from the response's `Rouse-Action` header, then `options.action`,
+   * then the store's configured action, then `replace`. None of them change the
+   * store's configuration.
+   *
+   * @returns `false` if the store does not exist or a listener canceled the patch.
+   */
+  deposit(
+    storeName: string,
+    payload: object,
+    options?: { action?: PatchAction; response?: RouseResponse },
+  ): boolean {
+    const entry = this._getStore(storeName);
+    if (!entry) return false;
+
+    const { data } = entry;
+    const response = options?.response;
+
+    const action =
+      (response && resolveResponseAction(response)) ||
+      options?.action ||
+      entry.config?.action ||
+      'replace';
+
+    const beforeEvent = this._dispatchPatchEvent(
+      entry,
+      'rz:store:patch:before',
+      { storeName, operation: 'fetch', data, payload, action },
+      { cancelable: true },
+    );
+    if (beforeEvent.defaultPrevented) return false;
+
+    // Whole payload, mutable by listeners, matching the sync path
+    const applied = beforeEvent.detail.payload as object;
+
+    this._adoptState(entry, applied, action);
+    entry.status.lastSync = Date.now();
+
+    this._dispatchPatchEvent(entry, 'rz:store:patch', {
+      storeName,
+      operation: 'fetch',
+      data,
+      payload: applied,
+      action,
+      response,
+    });
+
+    return true;
   }
 
   /**

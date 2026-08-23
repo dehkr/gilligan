@@ -3,7 +3,6 @@ import { warn } from '../core/diagnostics';
 import { isPlainObject } from '../core/state';
 import { rzTarget } from '../directives';
 import type { RouseResponse } from '../types';
-import { dispatch } from './events';
 
 /**
  * Listens to the app root for JSON fetch responses and routes the payloads into global
@@ -30,7 +29,7 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
       targetOverride,
     );
 
-    routeToStore(app, stores, data);
+    routeToStore(app, stores, data, detail);
   };
 
   ['success', 'error'].forEach((eventType) => {
@@ -39,14 +38,20 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
 }
 
 /**
- * Deposits a JSON `payload` into each named store via `app.stores.update`; a
- * whole-payload deposit, not the per-field reconciliation `rz-pull` performs.
- * Non-POJO payloads and unknown store names warn and are skipped.
+ * Deposits a JSON `payload` into each named store; a whole-payload deposit, not the
+ * per-field reconciliation `rz-pull` performs. Non-POJO payloads and unknown store
+ * names warn and are skipped.
  *
  * @param stores - Store names to deposit into (from `rz-target`'s `@store` targets).
  * @param payload - The parsed JSON body to write into each store.
+ * @param response - Carries the server's `Rouse-Action` header, if it sent one.
  */
-function routeToStore(app: RouseApp, stores: string[], payload: any) {
+function routeToStore(
+  app: RouseApp,
+  stores: string[],
+  payload: any,
+  response: RouseResponse,
+) {
   if (stores.length === 0) return;
 
   if (!isPlainObject(payload)) {
@@ -61,20 +66,6 @@ function routeToStore(app: RouseApp, stores: string[], payload: any) {
       continue;
     }
 
-    const data = app.stores.get(storeName);
-    const targetEl = app.stores.elementFor(storeName) || app.root;
-
-    const beforeEvent = dispatch(
-      targetEl,
-      'rz:store:patch:before',
-      { storeName, operation: 'fetch', data, payload },
-      { cancelable: true },
-    );
-
-    if (beforeEvent.defaultPrevented) continue;
-
-    app.stores.update(storeName, beforeEvent.detail.payload as object);
-    app.stores._markSynced(storeName);
-    dispatch(targetEl, 'rz:store:patch', { storeName, operation: 'fetch', data });
+    app.stores.deposit(storeName, payload, { response });
   }
 }
