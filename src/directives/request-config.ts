@@ -2,98 +2,72 @@ import { getDirectiveValue } from '../core/attributes';
 import { warn } from '../core/diagnostics';
 import { parseDirectiveValue, safeJSONParse } from '../core/parser';
 import { parseTime } from '../core/timing';
-import type { ConfigDirective, DirectiveSlug, RouseRequest } from '../types';
+import type { DirectiveSlug } from '../types';
 
-/** Keys parsed as booleans. */
-const BOOLEAN_KEYS = ['keepalive', 'rollback-on-error', 'skip-interceptors'];
-/** Keys that must hold an object, written as inline JSON. */
-const OBJECT_KEYS = ['params'];
-/** Keys that hold an object when written as inline JSON, and a literal otherwise. */
-const ANY_KEYS = ['body'];
-/** Keys parsed as durations by `parseTime`. */
-const DURATION_KEYS = ['timeout'];
+/** How a config value is coerced. `any` takes inline JSON or a literal. */
+export type ConfigValueType = 'string' | 'boolean' | 'duration' | 'object' | 'any';
 
-/**
- * Factory for the two request-config directives, `rz-fetch-config` and `rz-store-config`.
- */
-function defineRequestConfigDirective(
-  slug: DirectiveSlug,
-  reject: string[],
-): ConfigDirective<Partial<RouseRequest>> {
-  return {
-    getConfig: (el) => parseRequestConfig(getDirectiveValue(el, slug), el, slug, reject),
-  };
-}
+/** Keys accepted by every request-config directive. */
+export const TRANSPORT_KEYS = {
+  url: 'string',
+  params: 'object',
+  timeout: 'duration',
+  'abort-key': 'string',
+  'skip-interceptors': 'boolean',
+  credentials: 'string',
+  keepalive: 'boolean',
+  redirect: 'string',
+  cache: 'string',
+} as const satisfies Record<string, ConfigValueType>;
 
 /**
- * Parses a request-config directive value into a partial `RouseRequest`. One branch
- * per value type: objects, booleans, durations, and literal strings for everything
- * else. Shared by `rz-fetch-config` and `rz-store-config`.
+ * Parses a request-config directive value against the directive's key table.
+ * A key outside the table is rejected rather than stored, so a typo or a key
+ * belonging to another directive can't sit in a config doing nothing.
  */
-function parseRequestConfig(
-  value: string | null | undefined,
+export function parseKeyedConfig(
   el: Element,
   slug: DirectiveSlug,
-  reject: string[],
-): Partial<RouseRequest> {
+  keys: Record<string, ConfigValueType>,
+): Record<string, any> {
+  const value = getDirectiveValue(el, slug);
   if (!value) return {};
 
-  const parsed = parseDirectiveValue(value);
   const config: Record<string, any> = {};
 
-  for (const [key, rawVal] of parsed) {
+  for (const [key, rawVal] of parseDirectiveValue(value)) {
     if (!key) continue;
-    const val = rawVal ?? '';
 
-    // Keys this directive doesn't own. `headers` and `indicator` have their own
-    // directives; the rest are inapplicable to the operation.
-    if (reject.includes(key)) {
+    const type = keys[key];
+
+    if (!type) {
       __DEV__ &&
         warn(
           key === 'headers' || key === 'indicator'
             ? `rz-${slug}: '${key}' belongs on rz-${key}. Ignoring.`
-            : `rz-${slug}: '${key}' is not configurable here. Ignoring.`,
+            : `rz-${slug}: unknown key '${key}'. Ignoring.`,
           el,
         );
+      continue;
     }
 
-    // Objects, written as inline JSON
-    else if (OBJECT_KEYS.includes(key)) {
+    const val = rawVal ?? '';
+
+    if (type === 'boolean') {
+      config[kebabToCamel(key)] = val === 'true' || val === '';
+    } else if (type === 'duration') {
+      config[kebabToCamel(key)] = parseTime(val);
+    } else if (type === 'object' || (type === 'any' && isObjectLiteral(val))) {
       const obj = parseObject(val, key, el, slug);
       if (obj !== undefined) {
         config[kebabToCamel(key)] = obj;
       }
-    }
-
-    // Inline JSON when it looks like an object, otherwise a literal
-    else if (ANY_KEYS.includes(key)) {
-      if (!isObjectLiteral(val)) {
-        config[kebabToCamel(key)] = val;
-      } else {
-        const obj = parseObject(val, key, el, slug);
-        if (obj !== undefined) {
-          config[kebabToCamel(key)] = obj;
-        }
-      }
-    }
-
-    // Booleans
-    else if (BOOLEAN_KEYS.includes(key)) {
-      config[kebabToCamel(key)] = val === 'true' || val === '';
-    }
-
-    // Durations
-    else if (DURATION_KEYS.includes(key)) {
-      config[kebabToCamel(key)] = parseTime(val);
-    }
-
-    // Everything else is a literal string: url, method, abort-key, credentials
-    else {
+    } else {
       config[kebabToCamel(key)] = val;
     }
   }
 
-  return config as Partial<RouseRequest>;
+  return config;
 }
 
 function isObjectLiteral(val: string) {
@@ -121,14 +95,3 @@ function parseObject(val: string, key: string, el: Element, slug: DirectiveSlug)
 function kebabToCamel(str: string) {
   return str.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
-
-export const rzFetchConfig = defineRequestConfigDirective('fetch-config', [
-  'headers',
-  'indicator',
-]);
-export const rzStoreConfig = defineRequestConfigDirective('store-config', [
-  'headers',
-  'indicator',
-  'body',
-  'form',
-]);

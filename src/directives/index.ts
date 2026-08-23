@@ -1,7 +1,7 @@
 export { rzAttr, rzHtml, rzProp, rzText } from './bound-writers';
 export { rzFetch, rzPull, rzPush } from './network-ops';
-export { rzFetchConfig, rzStoreConfig } from './request-config';
 export { rzClass } from './rz-class';
+export { rzFetchConfig } from './rz-fetch-config';
 export { rzHeaders } from './rz-headers';
 export { rzIndicator } from './rz-indicator';
 export { rzKey } from './rz-key';
@@ -10,6 +10,7 @@ export { rzOn } from './rz-on';
 export { rzRender } from './rz-render';
 export { rzScope } from './rz-scope';
 export { rzStore } from './rz-store';
+export { rzStoreConfig } from './rz-store-config';
 export { rzStyle } from './rz-style';
 export { rzTarget } from './rz-target';
 export { rzWake } from './rz-wake';

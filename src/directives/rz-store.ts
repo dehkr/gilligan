@@ -1,16 +1,10 @@
 import type { RouseApp } from '../core/app';
 import { directiveSelector, getDirectiveValue } from '../core/attributes';
-import {
-  type HttpMethod,
-  isHttpMethod,
-  isPatchAction,
-  type PatchAction,
-} from '../core/constants';
 import { err, warn } from '../core/diagnostics';
 import type { SyncPolicy } from '../core/store';
-import type { RouseRequest, StandaloneDirective } from '../types';
-import { rzStoreConfig } from './request-config';
+import type { StandaloneDirective } from '../types';
 import { rzHeaders } from './rz-headers';
+import { rzStoreConfig } from './rz-store-config';
 
 const initialized = new WeakSet<HTMLScriptElement>();
 
@@ -53,31 +47,11 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
     }
   }
 
-  const storeConfig = rzStoreConfig.getConfig(el);
+  const cfg: Partial<SyncPolicy> = { ...rzStoreConfig.getConfig(el) };
   const headers = rzHeaders.getConfig(el);
-
-  // `action` isn't a request key; the config parser stores it as a literal string.
-  const { method, action, ...transport } = storeConfig as Partial<RouseRequest> & {
-    action?: string;
-  };
-
-  const cfg: Partial<SyncPolicy> = { ...transport };
 
   if (Object.keys(headers).length) {
     cfg.headers = headers;
-  }
-
-  const pushMethod = resolveMethod(method, el);
-  if (pushMethod) {
-    cfg.pushMethod = pushMethod;
-  }
-
-  if (action !== undefined) {
-    if (isPatchAction(action)) {
-      cfg.action = action.toLowerCase() as PatchAction;
-    } else {
-      __DEV__ && warn(`rz-store-config: unknown action '${action}'. Ignoring.`, el);
-    }
   }
 
   if (Object.keys(cfg).length) {
@@ -85,19 +59,6 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
   }
 
   initialized.add(el);
-}
-
-/**
- * Checks for a valid HTTP method and normalizes it to uppercase.
- */
-function resolveMethod(method: string | undefined, el: Element): HttpMethod | undefined {
-  if (method == null) return undefined;
-  if (!isHttpMethod(method)) {
-    __DEV__ && warn(`rz-store: unknown HTTP method '${method}'. Ignoring.`, el);
-    return undefined;
-  }
-
-  return method.toUpperCase() as HttpMethod;
 }
 
 function teardown(el: HTMLScriptElement) {

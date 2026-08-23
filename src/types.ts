@@ -532,19 +532,20 @@ export interface SyncConfig extends BaseRequestConfig {
   rollbackOnError?: boolean;
 }
 
-/**
- * The final unified options object passed into `ctx.fetch`. The union home for the
- * network layer and interceptors, which handle both paths.
- */
-export type RouseRequest = Omit<RequestInit, 'body' | 'headers'> &
-  FetchConfig &
-  SyncConfig;
+/** The final unified options object for a fetch. */
+export type FetchRequest = Omit<RequestInit, 'body' | 'headers'> & FetchConfig;
 
 /**
  * The final unified options object for a store push or pull. `method` is absent:
  * push takes its verb from `SyncPolicy.pushMethod` and pull is always `GET`.
  */
 export type SyncRequest = Omit<RequestInit, 'body' | 'headers' | 'method'> & SyncConfig;
+
+/**
+ * A fetch request that may also carry sync options. The union home for the network
+ * layer and interceptors, which handle both paths.
+ */
+export type RouseRequest = FetchRequest & SyncConfig;
 
 /**
  * The callable fetch surface. The HTTP method comes from `options.method`,

@@ -1,6 +1,6 @@
 import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
-import { rzFetchConfig } from '../directives/request-config';
+import { rzFetchConfig } from '../directives/rz-fetch-config';
 import { rzHeaders } from '../directives/rz-headers';
 import type { RequestError, RouseRequest, RouseResponse } from '../types';
 import { preparePayload } from './payload';

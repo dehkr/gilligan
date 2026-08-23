@@ -15,7 +15,7 @@ import type {
   TriggerSubjectPair,
   VoidFn,
 } from '../types';
-import { rzFetchConfig } from './request-config';
+import { rzFetchConfig } from './rz-fetch-config';
 
 const EXAMPLES = {
   fetch: 'click: /users',
