@@ -690,8 +690,13 @@ export class StoreManager {
     const action = config?.action || entry.config?.action || 'replace';
 
     this._withPatchGuard(() => patchState(entry.data, state, action));
-    entry.initial = clone(state);
-    entry.lastGood = clone(state);
+
+    // Snapshots track the store's data, not the incoming payload. Under `merge` the
+    // two differ, and both are restore targets: `initial` for reset, `lastGood` for
+    // rollback. Writing the partial here would make either restore a partial store.
+    entry.initial = clone(entry.data);
+    this._updateLastGood(entry, entry.data);
+
     this._clearAllDirty(entry);
 
     if (config) {
