@@ -1,8 +1,8 @@
 import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
-import { rzFetchConfig, rzStoreConfig } from '../directives/request-config';
+import { rzFetchConfig } from '../directives/request-config';
 import { rzHeaders } from '../directives/rz-headers';
-import type { NetworkAction, RequestError, RouseRequest, RouseResponse } from '../types';
+import type { RequestError, RouseRequest, RouseResponse } from '../types';
 import { preparePayload } from './payload';
 import { fallbackResponse, mapCatchError, normalizeResponse } from './response';
 
@@ -152,67 +152,34 @@ export async function request<T = any>(
 }
 
 /**
- * Resolves the final network configuration by merging app-level defaults with
- * directive-driven config layers in priority order (later wins):
+ * Resolves the final network configuration for a fetch by merging app-level
+ * defaults with directive-driven config layers in priority order (later wins):
  *
  *   1. global defaults (`app.config.*`)
- *   2. `rz-fetch-config`/`rz-store-config` on target element (push/pull only)
- *   3. the same directive on the triggering element
+ *   2. `rz-fetch-config` and `rz-headers` on the triggering element
  *
  * Headers follow the same chain, merged separately so per-key overrides win
  * without losing unrelated header keys from earlier layers.
  *
- * `targetEl` applies to push/pull, where the action is initiated by one element but
- * configured on another (the store's owning element). A `null` `triggerEl` is a
- * programmatic request with no originating element: only the global layer applies.
+ * A `null` `triggerEl` is a programmatic request with no originating element:
+ * only the global layer applies. Push and pull do not come through here — their
+ * config lives on the store.
  */
 export function resolveRequestConfig(
   triggerEl: Element | null,
-  action: NetworkAction,
   app: RouseApp,
-  targetEl?: Element,
 ): Partial<RouseRequest> {
-  const globalConfig: Partial<RouseRequest> = {
-    headers: app.config.headers,
+  const config: Partial<RouseRequest> = {
     credentials: app.config.credentials,
+    ...(triggerEl ? rzFetchConfig.getConfig(triggerEl) : {}),
   };
 
-  const configDirective = action === 'fetch' ? rzFetchConfig : rzStoreConfig;
-
-  const layers: Partial<RouseRequest>[] = [];
-  const headerLayers: (Record<string, string | null> | undefined)[] = [];
-
-  const addLayer = (cfg: Partial<RouseRequest>) => {
-    layers.push(cfg);
-    if (cfg.headers) {
-      headerLayers.push(cfg.headers);
-    }
+  config.headers = {
+    ...app.config.headers,
+    ...(triggerEl ? rzHeaders.getConfig(triggerEl) : {}),
   };
 
-  const addHeaders = (hdrs: Record<string, string | null>) => {
-    if (Object.keys(hdrs).length > 0) {
-      headerLayers.push(hdrs);
-    }
-  };
-
-  addLayer(globalConfig);
-
-  const applyConfig = (el: Element) => {
-    addLayer(configDirective.getConfig(el));
-    addHeaders(rzHeaders.getConfig(el));
-  };
-
-  if (targetEl && targetEl !== triggerEl) {
-    applyConfig(targetEl);
-  }
-  if (triggerEl) {
-    applyConfig(triggerEl);
-  }
-
-  const merged = Object.assign({}, ...layers) as Partial<RouseRequest>;
-  merged.headers = Object.assign({}, ...headerLayers);
-
-  return merged;
+  return config;
 }
 
 /**

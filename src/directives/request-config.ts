@@ -18,9 +18,10 @@ const DURATION_KEYS = ['timeout'];
  */
 function defineRequestConfigDirective(
   slug: DirectiveSlug,
+  reject: string[],
 ): ConfigDirective<Partial<RouseRequest>> {
   return {
-    getConfig: (el) => parseRequestConfig(getDirectiveValue(el, slug), el, slug),
+    getConfig: (el) => parseRequestConfig(getDirectiveValue(el, slug), el, slug, reject),
   };
 }
 
@@ -33,6 +34,7 @@ function parseRequestConfig(
   value: string | null | undefined,
   el: Element,
   slug: DirectiveSlug,
+  reject: string[],
 ): Partial<RouseRequest> {
   if (!value) return {};
 
@@ -43,9 +45,16 @@ function parseRequestConfig(
     if (!key) continue;
     const val = rawVal ?? '';
 
-    // Reject rather than ignore to enforce single channel via rz-headers
-    if (key === 'headers') {
-      __DEV__ && warn(`rz-${slug}: headers belong on rz-headers. Ignoring.`, el);
+    // Keys this directive doesn't own. `headers` and `indicator` have their own
+    // directives; the rest are inapplicable to the operation.
+    if (reject.includes(key)) {
+      __DEV__ &&
+        warn(
+          key === 'headers' || key === 'indicator'
+            ? `rz-${slug}: '${key}' belongs on rz-${key}. Ignoring.`
+            : `rz-${slug}: '${key}' is not configurable here. Ignoring.`,
+          el,
+        );
     }
 
     // Objects, written as inline JSON
@@ -113,5 +122,13 @@ function kebabToCamel(str: string) {
   return str.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
 
-export const rzFetchConfig = defineRequestConfigDirective('fetch-config');
-export const rzStoreConfig = defineRequestConfigDirective('store-config');
+export const rzFetchConfig = defineRequestConfigDirective('fetch-config', [
+  'headers',
+  'indicator',
+]);
+export const rzStoreConfig = defineRequestConfigDirective('store-config', [
+  'headers',
+  'indicator',
+  'body',
+  'form',
+]);

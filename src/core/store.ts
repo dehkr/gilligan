@@ -8,11 +8,17 @@ import type {
   RouseRequest,
   RouseResponse,
   StoreSyncEvent,
+  SyncRequest,
   VoidFn,
 } from '../types';
 import type { RouseApp } from './app';
 import { getDirectiveValue } from './attributes';
-import { type HttpMethod, type PatchAction, STORE_PREFIX } from './constants';
+import {
+  type HttpMethod,
+  isPatchAction,
+  type PatchAction,
+  STORE_PREFIX,
+} from './constants';
 import { fail, warn } from './diagnostics';
 import { parseStoreRef } from './parser';
 import { getNestedVal, getPathRoot, setNestedVal } from './path';
@@ -30,19 +36,27 @@ export interface StoreTarget {
   nestedPath: string;
 }
 
-export interface SyncConfig {
+/**
+ * A store's standing sync policy. Seeded at init, applied to every push and pull.
+ *
+ * `indicator` is deliberately absent: it belongs to the trigger, not the store. A
+ * store has many triggers, and `resolveIndicators` takes a single value, so a
+ * policy-level indicator would silently override every trigger's `rz-indicator`.
+ */
+export interface SyncPolicy extends Omit<SyncRequest, 'url' | 'indicator'> {
+  /** Endpoint for push and pull. */
   url: string;
+  /** HTTP method for push. Defaults to `POST`. Pull is always `GET`. */
   pushMethod?: HttpMethod;
-  pullMethod?: HttpMethod;
+  /** How a response payload is written into the store. Defaults to `replace`. */
   action?: PatchAction;
-  rollbackOnError?: boolean;
 }
 
 export interface StoreRequestOptions {
   url?: string;
-  method?: HttpMethod;
   action?: PatchAction;
-  overrides?: Partial<RouseRequest>;
+  /** `triggerEl` is omitted: the top-level field is its only home. */
+  overrides?: Omit<SyncRequest, 'triggerEl'>;
   nestedPath?: string;
   rollbackOnError?: boolean;
   triggerEl?: Element;
@@ -53,7 +67,7 @@ interface StoreEntry {
   data: any;
   status: StoreStatus;
   initial: any;
-  config?: SyncConfig;
+  config?: SyncPolicy;
   lastGood?: any;
   activeReq?: symbol;
   el?: Element;
@@ -65,6 +79,58 @@ interface StoreEntry {
  */
 function sliceAt(obj: any, path?: string) {
   return path ? getNestedVal(obj, path) : obj;
+}
+
+/**
+ * The patch action the client intends to apply, before the server gets a say.
+ */
+function requestedAction(
+  manualConfig?: StoreRequestOptions,
+  policy?: SyncPolicy,
+): PatchAction {
+  return manualConfig?.action || policy?.action || 'replace';
+}
+
+/**
+ * Protocol headers describing the sync to the server. Merged under the user layers,
+ * so `rz-headers="Rouse-Store: null"` can drop any of them.
+ */
+function syncHeaders(
+  operation: 'push' | 'pull',
+  storeName: string,
+  action: PatchAction,
+  nestedPath?: string,
+): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Rouse-Sync': operation,
+    'Rouse-Store': storeName,
+    'Rouse-Action': action,
+  };
+
+  if (nestedPath) {
+    headers['Rouse-Path'] = nestedPath;
+  }
+
+  return headers;
+}
+
+/**
+ * Resolves the patch action for a response. A `Rouse-Action` response header wins
+ * over the client's intent: only the server knows whether it sent the whole
+ * document or a partial.
+ */
+function resolveResponseAction(
+  result: RouseResponse,
+  fallback: PatchAction,
+): PatchAction {
+  const header = result.headers?.['rouse-action'];
+  if (!header) return fallback;
+  if (isPatchAction(header)) {
+    return header.toLowerCase() as PatchAction;
+  }
+
+  __DEV__ && warn(`Ignoring unknown 'Rouse-Action' response header: '${header}'.`);
+  return fallback;
 }
 
 /**
@@ -127,14 +193,14 @@ export class StoreManager {
     this.app = app;
   }
 
-  private _setConfig(entry: StoreEntry, partial?: Partial<SyncConfig>) {
+  private _setConfig(entry: StoreEntry, partial?: Partial<SyncPolicy>) {
     entry.config = { url: '', ...entry.config, ...partial };
   }
 
   private _register(
     storeName: string,
     state: object,
-    programmaticConfig?: Partial<SyncConfig>,
+    programmaticConfig?: Partial<SyncPolicy>,
     el?: Element,
   ): StoreEntry {
     const status: StoreStatus = reactive({
@@ -203,33 +269,53 @@ export class StoreManager {
 
     const { data, config } = entry;
     const overrides = manualConfig?.overrides ?? {};
+    const policy: Partial<SyncPolicy> = config ?? {};
+    const {
+      url: policyUrl,
+      pushMethod,
+      action: _policyAction,
+      headers: policyHeaders,
+      ...transport
+    } = policy;
 
-    const url = manualConfig?.url || overrides.url || config?.url;
-
-    const defaultMethod = operation === 'push' ? 'POST' : 'GET';
-    const storeMethod = operation === 'push' ? config?.pushMethod : config?.pullMethod;
-    const method =
-      manualConfig?.method || overrides.method || storeMethod || defaultMethod;
+    const url = manualConfig?.url || overrides.url || policyUrl;
 
     if (!url) {
       __DEV__ && warn(`Cannot ${operation} store '${storeName}': URL not configured.`);
       return;
     }
 
+    // Pull is prescribed GET; only push has a configurable verb.
+    const method = operation === 'push' ? pushMethod || 'POST' : 'GET';
+
+    const nestedPath = manualConfig?.nestedPath;
+    const action = requestedAction(manualConfig, config);
+
+    // Layers, later wins: protocol defaults, app config, store policy, programmatic
+    // overrides. Headers merge per key so one layer never drops another's keys.
     const requestOptions: RouseRequest = {
+      credentials: this.app.config.credentials,
+      ...transport,
       ...overrides,
+      headers: {
+        ...syncHeaders(operation, storeName, action, nestedPath),
+        ...this.app.config.headers,
+        ...policyHeaders,
+        ...overrides.headers,
+      },
       method,
-      abortKey: overrides.abortKey ?? `${operation}_${storeName}`,
+      triggerEl: manualConfig?.triggerEl,
+      abortKey: overrides.abortKey ?? transport.abortKey ?? `${operation}_${storeName}`,
       rollbackOnError:
         manualConfig?.rollbackOnError ??
         overrides.rollbackOnError ??
-        config?.rollbackOnError ??
+        transport.rollbackOnError ??
         false,
     };
 
     // Body for push: full data, or a nested slice if nestedPath is provided
     if (operation === 'push') {
-      requestOptions.body = sliceAt(data, manualConfig?.nestedPath);
+      requestOptions.body = sliceAt(data, nestedPath);
     }
 
     // Request-axis events prefer the trigger element, falling back to the store's
@@ -328,7 +414,7 @@ export class StoreManager {
   ) {
     const { name: storeName, data, status, config } = entry;
 
-    const action = manualConfig?.action || config?.action || 'replace';
+    const action = resolveResponseAction(result, requestedAction(manualConfig, config));
     const nestedPath = manualConfig?.nestedPath;
 
     // Request-scoped, not response-scoped: a 200 means the data reached the server,
@@ -574,7 +660,7 @@ export class StoreManager {
   create<T extends object = any>(
     storeName: string,
     state: T,
-    config?: Partial<SyncConfig>,
+    config?: Partial<SyncPolicy>,
     el?: Element,
   ): T {
     if (this._stores.has(storeName)) {
@@ -594,7 +680,7 @@ export class StoreManager {
   update<T extends object = any>(
     storeName: string,
     state: object,
-    config?: Partial<SyncConfig>,
+    config?: Partial<SyncPolicy>,
   ): T {
     const entry = this._stores.get(storeName);
     if (!entry) {
@@ -646,9 +732,9 @@ export class StoreManager {
   }
 
   /**
-   * Patches `SyncConfig` for a store. Warns if the store is missing.
+   * Patches `SyncPolicy` for a store. Warns if the store is missing.
    */
-  config(storeName: string, config: Partial<SyncConfig>) {
+  config(storeName: string, config: Partial<SyncPolicy>) {
     const entry = this._stores.get(storeName);
     if (!entry) {
       __DEV__ && warn(`Cannot configure store '${storeName}': store not found.`);

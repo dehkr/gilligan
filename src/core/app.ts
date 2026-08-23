@@ -38,7 +38,7 @@ import type {
 import { queryTargets } from './attributes';
 import { fail, info, warn } from './diagnostics';
 import { ScopeRegistry } from './scope-registry';
-import { StoreManager, type SyncConfig } from './store';
+import { StoreManager, type SyncPolicy } from './store';
 
 export interface RouseConfig {
   /** Element or selector where the app mounts. Defaults to `document.body`. */
@@ -289,7 +289,7 @@ export class RouseApp {
    *
    * cart.items.push(item);
    */
-  store<T extends object>(name: string, data: T, config?: Partial<SyncConfig>) {
+  store<T extends object>(name: string, data: T, config?: Partial<SyncPolicy>) {
     return this.stores.create<T>(name, data, config);
   }
 

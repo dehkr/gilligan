@@ -9,10 +9,7 @@ import {
   isFlagModifier,
   isHttpMethod,
   isListenTarget,
-  isPatchAction,
   KEY_BLOCKLIST,
-  type PatchAction,
-  STORE_PREFIX,
 } from './constants';
 import { warn } from './diagnostics';
 import { isTimeModifier } from './timing';
@@ -273,46 +270,6 @@ export function parseFetchSubject(subject: string): {
   }
 
   return { url: subject };
-}
-
-/**
- * Parses a store subject string into an optional patch action and store target.
- * The action is matched by vocabulary and the target by its `@` prefix. The target
- * may be omitted when used on a `<script>` element with the `rz-store` directive.
- *
- * Returns `null` when a token is neither an action nor a store reference.
- *
- * @example
- * parseStoreSubject('merge \@cart'); // { action: 'merge', target: '@cart' }
- * parseStoreSubject('@cart.items');  // { target: '@cart.items' }
- * parseStoreSubject('replace');      // { action: 'replace' }
- */
-export function parseStoreSubject(
-  subject: string,
-  el?: Element,
-): { action?: PatchAction; target?: string } | null {
-  const ws = subject.search(/\s/);
-  const head = ws === -1 ? subject : subject.slice(0, ws);
-
-  // Leading action: everything after it is the store target
-  if (isPatchAction(head)) {
-    const action = head.toLowerCase() as PatchAction;
-    const target = ws === -1 ? '' : subject.slice(ws + 1).trim();
-    if (!target) return { action };
-    if (!target.startsWith(STORE_PREFIX)) {
-      __DEV__ && warn(`'${target}' is not a '@store' reference.`, el);
-      return null;
-    }
-    return { action, target };
-  }
-
-  // No leading action: the whole subject is the store target
-  if (!subject.startsWith(STORE_PREFIX)) {
-    __DEV__ && warn(`'${subject}' is not a patch action or '@store' reference.`, el);
-    return null;
-  }
-
-  return { target: subject };
 }
 
 /**

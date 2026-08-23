@@ -1,10 +1,16 @@
 import type { RouseApp } from '../core/app';
 import { directiveSelector, getDirectiveValue } from '../core/attributes';
-import { type HttpMethod, isHttpMethod } from '../core/constants';
+import {
+  type HttpMethod,
+  isHttpMethod,
+  isPatchAction,
+  type PatchAction,
+} from '../core/constants';
 import { err, warn } from '../core/diagnostics';
-import type { SyncConfig } from '../core/store';
-import type { StandaloneDirective } from '../types';
+import type { SyncPolicy } from '../core/store';
+import type { RouseRequest, StandaloneDirective } from '../types';
 import { rzStoreConfig } from './request-config';
+import { rzHeaders } from './rz-headers';
 
 const initialized = new WeakSet<HTMLScriptElement>();
 
@@ -47,25 +53,31 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
     }
   }
 
-  const cfg: Partial<SyncConfig> = {};
   const storeConfig = rzStoreConfig.getConfig(el);
+  const headers = rzHeaders.getConfig(el);
 
-  if (storeConfig.url) {
-    cfg.url = storeConfig.url;
+  // `action` isn't a request key; the config parser stores it as a literal string.
+  const { method, action, ...transport } = storeConfig as Partial<RouseRequest> & {
+    action?: string;
+  };
+
+  const cfg: Partial<SyncPolicy> = { ...transport };
+
+  if (Object.keys(headers).length) {
+    cfg.headers = headers;
   }
 
-  // One `method` seeds both directions, matching what the shared `rz-request`
-  // base layer did before the per-action variants were removed.
-  const method = resolveMethod(storeConfig.method, el);
-  if (method) {
-    cfg.pushMethod = method;
-    cfg.pullMethod = method;
+  const pushMethod = resolveMethod(method, el);
+  if (pushMethod) {
+    cfg.pushMethod = pushMethod;
   }
 
-  // Rollback is push-only
-  const rollbackOnError = storeConfig.rollbackOnError;
-  if (rollbackOnError !== undefined) {
-    cfg.rollbackOnError = rollbackOnError;
+  if (action !== undefined) {
+    if (isPatchAction(action)) {
+      cfg.action = action.toLowerCase() as PatchAction;
+    } else {
+      __DEV__ && warn(`rz-store-config: unknown action '${action}'. Ignoring.`, el);
+    }
   }
 
   if (Object.keys(cfg).length) {

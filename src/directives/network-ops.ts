@@ -1,18 +1,12 @@
 import type { RouseApp } from '../core/app';
-import { directiveSelector, getDirectiveValue } from '../core/attributes';
-import type { PatchAction } from '../core/constants';
+import { directiveSelector, getDirectiveValue, hasDirective } from '../core/attributes';
 import { warn } from '../core/diagnostics';
-import {
-  parseFetchSubject,
-  parseStoreSubject,
-  parseTriggerSubjectPairs,
-} from '../core/parser';
+import { parseFetchSubject, parseTriggerSubjectPairs } from '../core/parser';
 import { getPathRoot } from '../core/path';
 import { resolveTarget } from '../core/store';
 import { applyTiming } from '../core/timing';
 import { dispatchTrigger, isNativeNavigation } from '../dom/events';
 import { runFetch } from '../net/fetch-engine';
-import { resolveRequestConfig } from '../net/request';
 import type {
   DirectiveSlug,
   RouseRequest,
@@ -165,9 +159,9 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
 }
 
 /**
- * Binds each `[trigger]: [[action] @store[.path]]` pair to a push or pull.
- * The push `edit` trigger fires on store mutation via `bindStoreEditTrigger`;
- * every other trigger routes through `dispatchTrigger`. Returns the cleanups.
+ * Binds each `[trigger]: @store[.path]` pair to a push or pull. The push `edit`
+ * trigger fires on store mutation via `bindStoreEditTrigger`; every other trigger
+ * routes through `dispatchTrigger`. Returns the cleanups.
  */
 function bindStorePairs(
   op: 'push' | 'pull',
@@ -177,16 +171,26 @@ function bindStorePairs(
 ) {
   const cleanups: VoidFn[] = [];
 
-  for (const { trigger, subject } of pairs) {
-    const parsed = subject ? parseStoreSubject(subject, el) : {};
-    if (!parsed) continue;
+  // Sync config lives on the store, so these are inert here and otherwise silent
+  if (__DEV__ && !hasDirective(el, 'fetch') && !hasDirective(el, 'store')) {
+    hasDirective(el, 'headers') &&
+      warn(
+        `rz-${op}: rz-headers on a trigger element is ignored. Set headers on the store's <script rz-store> element.`,
+        el,
+      );
+    hasDirective(el, 'store-config') &&
+      warn(
+        `rz-${op}: rz-store-config on a trigger element is ignored. Configure the store on its <script rz-store> element.`,
+        el,
+      );
+  }
 
-    const { action, target } = parsed;
-    const resolved = resolveTarget(el, op, target ?? null);
+  for (const { trigger, subject } of pairs) {
+    const resolved = resolveTarget(el, op, subject);
     if (!resolved) continue;
 
     const { storeName, nestedPath } = resolved;
-    const fire = () => triggerStoreSync(op, el, app, storeName, nestedPath, action);
+    const fire = () => triggerStoreSync(op, el, app, storeName, nestedPath);
 
     if (op === 'push' && trigger.event === 'edit') {
       cleanups.push(
@@ -203,9 +207,9 @@ function bindStorePairs(
 }
 
 /**
- * Resolves the merged request config from the trigger and target elements and
- * dispatches a push or pull through the store manager. Bails when the target
- * store isn't registered or already has a request in flight.
+ * Dispatches a push or pull through the store manager. Bails when the trigger is
+ * gone or disabled, when the target store isn't registered, or when the store
+ * already has a request in flight. Request config comes from the store, not here.
  */
 function triggerStoreSync(
   op: 'push' | 'pull',
@@ -213,8 +217,17 @@ function triggerStoreSync(
   app: RouseApp,
   storeName: string,
   nestedPath?: string,
-  action?: PatchAction,
 ) {
+  // A debounced or queued trigger can fire after the element is gone
+  if (!triggerEl.isConnected) return;
+
+  if (
+    triggerEl.hasAttribute('disabled') ||
+    triggerEl.getAttribute('aria-disabled') === 'true'
+  ) {
+    return;
+  }
+
   const status = app.stores.status(storeName);
   if (!status) {
     __DEV__ && warn(`rz-${op}: store '@${storeName}' not found.`, triggerEl);
@@ -222,10 +235,7 @@ function triggerStoreSync(
   }
   if (status.loading) return;
 
-  const targetEl = app.stores.elementFor(storeName);
-  const overrides = resolveRequestConfig(triggerEl, op, app, targetEl);
-
-  app.stores[op](storeName, { overrides, nestedPath, action, triggerEl });
+  app.stores[op](storeName, { nestedPath, triggerEl });
 }
 
 /**

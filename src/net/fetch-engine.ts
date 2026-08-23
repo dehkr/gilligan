@@ -55,7 +55,7 @@ export async function runFetch(
       );
     }
 
-    const finalRequestInit = resolveRequestConfig(triggerEl, 'fetch', app);
+    const finalRequestInit = resolveRequestConfig(triggerEl, app);
     const isFormEl = triggerEl instanceof HTMLFormElement;
     const formMethod = isFormEl ? triggerEl.getAttribute('method') : undefined;
 

@@ -454,9 +454,6 @@ export interface StandaloneDirective<T extends Element = Element> {
   teardown: (el: T) => void;
 }
 
-/** The kind of network action a directive describes. */
-export type NetworkAction = 'fetch' | 'push' | 'pull';
-
 /**
  * Custom error statuses for non-HTTP failures.
  *
@@ -492,23 +489,19 @@ export interface RequestError {
   parseError?: string;
 }
 
-/** Framework-specific execution and UI options. */
-export interface FetchConfig {
-  /** The request URL. When triggered declaratively, resolved from the directive subject or `rz-fetch-config`. */
+/** Request options shared by `rz-fetch` and store sync (`rz-push`/`rz-pull`). */
+export interface BaseRequestConfig {
+  /** The request URL. */
   url?: string;
   /** CSS selector for elements to receive the rouse request class for the duration of the request. */
   indicator?: string | null;
   /**
-   * The element hosting the `rz-fetch` that initiated the request. Set by the declarative
-   * path; programmatic requests leave it unset unless the caller supplies one.
+   * The element that initiated the request. Set by the declarative path; programmatic
+   * requests leave it unset unless the caller supplies one.
    */
   triggerEl?: Element;
   /** Request headers. A `null` value removes the header. Empty strings are sent as-is. */
   headers?: Record<string, string | null>;
-  /** Request body. Plain objects/arrays are JSON-serialized; a `BodyInit` is sent as-is. */
-  body?: BodyInit | Record<string, any> | any[] | null | undefined;
-  /** Serialize and send this form's data as the request body. */
-  form?: HTMLFormElement;
   /** Appended to the URL as query-string parameters. */
   params?: Record<
     string,
@@ -516,13 +509,42 @@ export interface FetchConfig {
   >;
   /** Skip all registered interceptors for this request. */
   skipInterceptors?: boolean;
-  /** When true, auto-revert local state on push failure. Ignored by fetch and pull. */
-  rollbackOnError?: boolean;
   /** Abort the request after this many milliseconds. */
   timeout?: number;
   /** Requests sharing the same key cancel each other; the last one wins. */
   abortKey?: string | symbol;
 }
+
+/** Options for a fetch. */
+export interface FetchConfig extends BaseRequestConfig {
+  /** Request body. Plain objects/arrays are JSON-serialized; a `BodyInit` is sent as-is. */
+  body?: BodyInit | Record<string, any> | any[] | null | undefined;
+  /** Serialize and send this form's data as the request body. */
+  form?: HTMLFormElement;
+}
+
+/**
+ * Options for a store push or pull. A push body is the store's own data, and a pull
+ * carries none, so `body` and `form` are absent by design.
+ */
+export interface SyncConfig extends BaseRequestConfig {
+  /** When true, auto-revert local state on push failure. Ignored by pull. */
+  rollbackOnError?: boolean;
+}
+
+/**
+ * The final unified options object passed into `ctx.fetch`. The union home for the
+ * network layer and interceptors, which handle both paths.
+ */
+export type RouseRequest = Omit<RequestInit, 'body' | 'headers'> &
+  FetchConfig &
+  SyncConfig;
+
+/**
+ * The final unified options object for a store push or pull. `method` is absent:
+ * push takes its verb from `SyncPolicy.pushMethod` and pull is always `GET`.
+ */
+export type SyncRequest = Omit<RequestInit, 'body' | 'headers' | 'method'> & SyncConfig;
 
 /**
  * The callable fetch surface. The HTTP method comes from `options.method`,
@@ -532,9 +554,6 @@ export type RouseFetch = (
   resource: string,
   options?: RouseRequest,
 ) => Promise<RouseResponse>;
-
-/** The final unified options object passed into `ctx.fetch`. */
-export type RouseRequest = Omit<RequestInit, 'body' | 'headers'> & FetchConfig;
 
 /** The enhanced response object returned by `ctx.fetch` and `request()`. */
 export interface RouseResponse<T = any> {
