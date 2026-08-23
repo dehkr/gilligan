@@ -7,25 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add the `rz-indicator` directive. Takes a CSS selector for elements that receive the `rouse-request` class while a request from the host element is in flight.
+- Add `app.stores.deposit(name, payload, options?)`, the programmatic form of routing a JSON response into a store with `rz-target="@store"`.
+- Send four protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, `Rouse-Path` (when syncing a slice), and `Rouse-Action`.
+- Honor a `Rouse-Action` response header (`replace` or `merge`) when writing a payload into a store; takes precedence over store config.
+
 ### Changed
 
-- **Breaking:** Consolidate the request-config directives. `rz-request` and
-`rz-fetch-request` become `rz-fetch-config`; `rz-push-request` and `rz-pull-request`
-become `rz-store-config` on the store element.
+- **Breaking:** Consolidate the request-config directives. `rz-request` and `rz-fetch-request` become `rz-fetch-config`; `rz-push-request` and `rz-pull-request` become `rz-store-config` on the store element. `rz-push` and `rz-pull` are configured on the store, not on the trigger
+- **Breaking:** Drop the patch action from `rz-push` and `rz-pull` values. `rz-push="click: merge @cart"` becomes `rz-push="click: @cart"` plus either a `Rouse-Action: merge` response header (preferred) or `rz-store-config="action: merge"`.
+- **Breaking:** Change the store's `method` option to `push-method`. Pull is always `GET`, so a bare `method` implied it affected both directions.
+- **Breaking:** Stop resolving direct `@store` and `#json-id` references in config values. Config directive values are literal text. `params` and `body` accept an inline JSON object; every other key takes its value as written.
+- **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.
+- **Breaking:** Reject store-only options on `ctx.fetch` and `app.fetch`. `ctx.fetch(url, { rollbackOnError: true })` was accepted and silently ignored; it is now a type error.
+- Merge programmatic headers with declarative ones per key instead of replacing them wholesale.
+- Fire the same events with the same detail when a fetch response is deposited into a store as when a push or pull writes to it, including `action` and `payload`.
 
 ### Removed
 
-- **Breaking:** Remove the `target` and `swap` fetch options, and stop `ctx.fetch`
-from targeting the scope host. `triggerEl` can be set to route a response through that element's `rz-target`, or place HTML manually with the exported `swap`.
+- **Breaking:** Remove the `target` and `swap` fetch options, and stop `ctx.fetch` from targeting the scope host. `triggerEl` can be set to route a response through that element's `rz-target`, or place HTML manually with the exported `swap`.
 - **Breaking:** Remove store context aliasing for scopes. `rz-scope="@store"` no longer aliases store data. Reference stores directly from directives instead.
 - **Breaking:** Remove `rz-fetch-headers`, `rz-push-headers`, and `rz-pull-headers`.
 Use `rz-headers` to set headers declaratively.
 - **Breaking:** Remove the `rz-url` directive; subsumed by the `url` field in `rz-fetch-config` and `rz-store-config`.
-- **Breaking:** Remove `@store` references as URLs. A dynamic endpoint belongs in an
-interceptor or a programmatic call.
-- **Breaking:** Config directive values now resolve by key rather than by value shape.
-`params` and `body` accept an injection reference or inline JSON; every other key takes
-its value literally.
+- **Breaking:** Remove `@store` references as URLs. A dynamic endpoint belongs in an interceptor or a programmatic call.
+- **Breaking:** Remove `pullMethod` from store config. A pull carries no body, so it is always `GET`.
+- **Breaking:** Remove `method` from the options bag of `app.stores.push()` and `.pull()`. Set `pushMethod` on the store instead.
+- **Breaking:** Remove `mode`, `referrer`, `referrer-policy`, `integrity`, and `priority` keys from the config directives. They remain available programmatically and through a request interceptor.
+
+### Fixed
+
+- Apply only the newest push or pull to a store. Two overlapping requests could previously write to the store in arrival order, letting a slow earlier response
+overwrite a newer one (or roll back to a stale snapshot on failure).
+- Take `reset()` and rollback snapshots from the store's data rather than the incoming payload. Under `merge`, a partial payload became the restore target, so a later
+`reset()` or a failed push restored a partial store.
 
 ## [0.12.0] - 2026-08-13
 
