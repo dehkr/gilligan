@@ -90,7 +90,8 @@ export function setModelableValue(el: Element, value: BindableValue) {
 
 /**
  * Reads the current value out of a form control or contenteditable. Checkboxes yield
- * a boolean; number and range inputs a number or `null`; multi-selects an array.
+ * a boolean; number and range inputs a number, or `undefined` when empty; multi-selects
+ * an array.
  */
 export function getModelableValue(el: Element): BindableValue {
   if (!(el instanceof HTMLElement)) return;
@@ -104,7 +105,7 @@ export function getModelableValue(el: Element): BindableValue {
       return el.checked;
     }
     if (el.type === 'number' || el.type === 'range') {
-      return Number.isNaN(el.valueAsNumber) ? null : el.valueAsNumber;
+      return Number.isNaN(el.valueAsNumber) ? undefined : el.valueAsNumber;
     }
     return el.value;
   }
