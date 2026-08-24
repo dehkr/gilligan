@@ -204,8 +204,26 @@ export class StoreManager {
     return entry;
   }
 
-  private _updateLastGood(entry: StoreEntry, data: any) {
-    entry.lastGood = clone(data);
+  /**
+   * Advances the `lastGood` baseline to `source`, whole or at a single root,
+   * and reconciles the dirty flags that move with it.
+   */
+  private _updateLastGood(entry: StoreEntry, source: any, rootKey?: string) {
+    if (!rootKey) {
+      entry.lastGood = clone(source);
+      this._reconcileDirty(entry);
+      return;
+    }
+
+    entry.lastGood ??= {};
+
+    if (Object.hasOwn(source, rootKey)) {
+      entry.lastGood[rootKey] = clone(source[rootKey]);
+    } else {
+      delete entry.lastGood[rootKey];
+    }
+
+    this._reconcileDirty(entry, [rootKey]);
   }
 
   /**
@@ -370,25 +388,6 @@ export class StoreManager {
     }
   }
 
-  /**
-   * Clears dirty flags for keys whose current value matches `reference`: the
-   * pushed snapshot on a successful sync, or last-good state on rollback.
-   */
-  private _clearDirtyMatching(
-    status: StoreStatus,
-    data: any,
-    reference: any,
-    nestedPath?: string,
-  ) {
-    const rootKey = getPathRoot(nestedPath);
-    const keys = rootKey ? [rootKey] : Object.keys(reference);
-    for (const key of keys) {
-      if (Object.hasOwn(reference, key) && deepEqual(data[key], reference[key])) {
-        delete status.dirty[key];
-      }
-    }
-  }
-
   private _applyServerResponse(
     entry: StoreEntry,
     operation: 'push' | 'pull',
@@ -405,7 +404,7 @@ export class StoreManager {
     // a listener cancelling `:before`).
     if (operation === 'push') {
       status.lastSync = Date.now();
-      this._clearDirtyMatching(status, data, snapshot, nestedPath);
+      this._updateLastGood(entry, snapshot, getPathRoot(nestedPath));
     }
 
     const beforeEvent = this._dispatchPatchEvent(
@@ -445,14 +444,14 @@ export class StoreManager {
         return;
       }
 
-      this._patchPayload(data, payload, nestedPath);
+      this._patchPayload(entry, payload, nestedPath);
     }
 
     if (operation === 'pull') {
       status.lastSync = Date.now();
     }
 
-    this._updateLastGood(entry, data);
+    this._updateLastGood(entry, data, getPathRoot(nestedPath));
 
     this._dispatchPatchEvent(entry, 'rz:store:patch', {
       storeName,
@@ -469,9 +468,11 @@ export class StoreManager {
    * `nestedPath`. A path absent from the payload writes nothing; a `null` at the
    * path removes the slice.
    */
-  private _patchPayload(data: any, payload: any, nestedPath?: string) {
+  private _patchPayload(entry: StoreEntry, payload: any, nestedPath?: string) {
+    const { data } = entry;
+
     if (!nestedPath) {
-      this._withPatchGuard(() => patchState(data, payload, 'merge'));
+      this._withPatchGuard(entry, () => patchState(data, payload, 'merge'));
       return;
     }
 
@@ -479,11 +480,11 @@ export class StoreManager {
     if (incoming === undefined) return;
 
     if (incoming === null) {
-      this._withPatchGuard(() => deleteNestedVal(data, nestedPath));
+      this._withPatchGuard(entry, () => deleteNestedVal(data, nestedPath));
       return;
     }
 
-    this._withPatchGuard(() => {
+    this._withPatchGuard(entry, () => {
       if (!isPlainObject(incoming)) {
         setNestedVal(data, nestedPath, incoming);
         return;
@@ -506,18 +507,18 @@ export class StoreManager {
     });
   }
 
-  private _withPatchGuard(fn: VoidFn) {
+  /**
+   * Runs a framework write with dirty tracking suppressed, then reconciles the
+   * dirty flags against the baseline. Every framework mutation of store data
+   * goes through here, so the reconcile cannot be forgotten.
+   */
+  private _withPatchGuard(entry: StoreEntry, fn: VoidFn) {
     this._isPatching = true;
     try {
       fn();
     } finally {
       this._isPatching = false;
-    }
-  }
-
-  private _clearAllDirty(entry: StoreEntry) {
-    for (const key of Object.keys(entry.status.dirty)) {
-      delete entry.status.dirty[key];
+      this._reconcileDirty(entry);
     }
   }
 
@@ -526,10 +527,9 @@ export class StoreManager {
    * (`reset()` and rollback) and the dirty flags are refreshed to match.
    */
   private _adoptState(entry: StoreEntry, state: object, action: 'replace' | 'merge') {
-    this._withPatchGuard(() => patchState(entry.data, state, action));
+    this._withPatchGuard(entry, () => patchState(entry.data, state, action));
     entry.initial = clone(entry.data);
     this._updateLastGood(entry, entry.data);
-    this._clearAllDirty(entry);
   }
 
   private _maybeRollback(
@@ -538,7 +538,7 @@ export class StoreManager {
     nestedPath: string | undefined,
     error: unknown,
   ): boolean {
-    const { name: storeName, data, status, lastGood } = entry;
+    const { name: storeName, data, lastGood } = entry;
     if (lastGood === undefined) return false;
 
     // Skip when the user has kept editing during flight
@@ -552,15 +552,13 @@ export class StoreManager {
 
     const rolledBackTo = clone(lastGoodSlice);
 
-    this._withPatchGuard(() => {
+    this._withPatchGuard(entry, () => {
       if (nestedPath) {
         setNestedVal(data, nestedPath, rolledBackTo);
       } else {
         patchState(data, rolledBackTo, 'replace');
       }
     });
-
-    this._clearDirtyMatching(status, data, lastGood, nestedPath);
 
     this._dispatchPatchEvent(entry, 'rz:store:patch:rollback', {
       storeName,
@@ -792,9 +790,8 @@ export class StoreManager {
 
     const { data, initial } = entry;
 
-    this._withPatchGuard(() => patchState(data, clone(initial), 'replace'));
+    this._withPatchGuard(entry, () => patchState(data, clone(initial), 'replace'));
     this._updateLastGood(entry, data);
-    this._clearAllDirty(entry);
   }
 
   /**
