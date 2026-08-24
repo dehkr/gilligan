@@ -69,6 +69,25 @@ export function clone<T>(obj: T, seen = new WeakMap(), path = 'root'): T {
 }
 
 /**
+ * Collects the dot-paths of every object property holding `null`. Arrays are not
+ * traversed: they overwrite wholesale under RFC 7396, so a null inside one is a
+ * value rather than a tombstone.
+ */
+export function nullPaths(obj: unknown, seen = new WeakSet(), path = ''): string[] {
+  if (!isPlainObject(obj) || seen.has(obj)) return [];
+  seen.add(obj);
+
+  return Object.keys(obj).flatMap((key) => {
+    if (!isOwnDataProp(obj, key)) return [];
+
+    const val = obj[key];
+    const keyPath = path ? `${path}.${key}` : key;
+
+    return val === null ? [keyPath] : nullPaths(val, seen, keyPath);
+  });
+}
+
+/**
  * Compare two values for deep equality. Skip the same properties `clone()` strips,
  * so a value always compares equal to its own clone.
  */

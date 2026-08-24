@@ -17,7 +17,14 @@ import { type HttpMethod, STORE_PREFIX } from './constants';
 import { fail, warn } from './diagnostics';
 import { parseStoreRef } from './parser';
 import { deleteNestedVal, getNestedVal, getPathRoot, setNestedVal } from './path';
-import { clone, deepEqual, isOwnDataProp, isPlainObject, patchState } from './state';
+import {
+  clone,
+  deepEqual,
+  isOwnDataProp,
+  isPlainObject,
+  nullPaths,
+  patchState,
+} from './state';
 
 export interface StoreStatus {
   loading: false | 'push' | 'pull';
@@ -96,6 +103,18 @@ function syncHeaders(
 }
 
 /**
+ * Warns for each object property holding `null` in a baseline the caller is
+ * asserting. Dev-only; gate every call with `__DEV__`.
+ */
+function warnNullFields(storeName: string, state: object) {
+  nullPaths(state).forEach((path) =>
+    warn(
+      `Store '${storeName}': '${path}' is null. Sync reads null as a delete (RFC 7396), so it cannot rest as a value. Use '' or omit the key.`,
+    ),
+  );
+}
+
+/**
  * Resolves a push/pull subject into a store name and optional nested path.
  * A `null` subject means self-target, which is valid only on a <script> element
  * with the `rz-store` directive present.
@@ -165,19 +184,24 @@ export class StoreManager {
     programmaticConfig?: Partial<SyncPolicy>,
     el?: Element,
   ): StoreEntry {
+    __DEV__ && warnNullFields(storeName, state);
+
     const status: StoreStatus = reactive({
       loading: false,
       error: null,
       lastSync: 0,
       dirty: {},
     });
+
     const proxyState = reactive(state);
+
     const entry: StoreEntry = {
       name: storeName,
       data: proxyState,
       status,
       initial: clone(state),
     };
+
     this._stores.set(storeName, entry);
 
     trackDirty(proxyState, (rootKey: string) => {
@@ -672,6 +696,8 @@ export class StoreManager {
     if (!entry) {
       fail(`Store '${storeName}' does not exist.`);
     }
+
+    __DEV__ && warnNullFields(storeName, state);
 
     this._adoptState(entry, state, 'replace');
 
