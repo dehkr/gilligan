@@ -17,7 +17,7 @@ import { type HttpMethod, STORE_PREFIX } from './constants';
 import { fail, warn } from './diagnostics';
 import { parseStoreRef } from './parser';
 import { deleteNestedVal, getNestedVal, getPathRoot, setNestedVal } from './path';
-import { clone, deepEqual, isPlainObject, patchState } from './state';
+import { clone, deepEqual, isOwnDataProp, isPlainObject, patchState } from './state';
 
 export interface StoreStatus {
   loading: false | 'push' | 'pull';
@@ -64,6 +64,7 @@ interface StoreEntry {
   activeReq?: symbol;
   el?: Element;
   listeners?: Set<VoidFn>;
+  touched?: Set<string>;
 }
 
 /**
@@ -147,7 +148,7 @@ export class StoreManager {
   private app: RouseApp;
 
   private _stores = new Map<string, StoreEntry>();
-  private _pendingMutates = new Set<StoreEntry>();
+  private _pendingFlush = new Set<StoreEntry>();
   private _isPatching = false;
 
   constructor(app: RouseApp) {
@@ -181,8 +182,11 @@ export class StoreManager {
 
     trackDirty(proxyState, (rootKey: string) => {
       if (this._isPatching) return;
-      status.dirty[rootKey] = true;
-      this._scheduleMutate(entry);
+
+      entry.touched ??= new Set();
+      entry.touched.add(rootKey);
+
+      this._scheduleFlush(entry);
     });
 
     if (programmaticConfig) {
@@ -202,6 +206,32 @@ export class StoreManager {
 
   private _updateLastGood(entry: StoreEntry, data: any) {
     entry.lastGood = clone(data);
+  }
+
+  /**
+   * Recomputes dirty flags against `lastGood`. The only writer of `status.dirty`.
+   * Without `roots`, walks every root in the data or the baseline, so a root
+   * deleted locally still reads dirty.
+   */
+  private _reconcileDirty(entry: StoreEntry, roots?: Iterable<string>) {
+    const { data, status } = entry;
+    const baseline = entry.lastGood ?? {};
+    const keys = roots ?? new Set([...Object.keys(data), ...Object.keys(baseline)]);
+
+    for (const key of keys) {
+      // Accessors and methods are absent from `lastGood` (clone strips them), so
+      // comparing them would mark every getter permanently dirty. A key missing
+      // from `data` entirely is a deleted root and must still be compared.
+      if (!isOwnDataProp(data, key) && Object.getOwnPropertyDescriptor(data, key)) {
+        continue;
+      }
+
+      if (deepEqual(data[key], baseline[key])) {
+        delete status.dirty[key];
+      } else {
+        status.dirty[key] = true;
+      }
+    }
   }
 
   private _dispatchPatchEvent<E extends StorePatchEvent>(
@@ -545,26 +575,30 @@ export class StoreManager {
     return true;
   }
 
-  private _scheduleMutate(entry: StoreEntry) {
-    if (!entry.listeners) return;
+  /**
+   * Queues a store for end-of-microtask reconciliation, coalescing a batch of
+   * synchronous writes into one dirty recompute and one round of notifications.
+   */
+  private _scheduleFlush(entry: StoreEntry) {
+    const wasEmpty = this._pendingFlush.size === 0;
+    this._pendingFlush.add(entry);
+    if (!wasEmpty) return;
 
-    const wasEmpty = this._pendingMutates.size === 0;
-    this._pendingMutates.add(entry);
+    queueMicrotask(() => {
+      const flushing = [...this._pendingFlush];
+      this._pendingFlush.clear();
 
-    if (wasEmpty) {
-      queueMicrotask(() => {
-        const toNotify = [...this._pendingMutates];
-        this._pendingMutates.clear();
-        for (const pending of toNotify) {
-          const listeners = pending.listeners;
-          if (listeners) {
-            for (const callback of listeners) {
-              callback();
-            }
-          }
+      for (const pending of flushing) {
+        const { touched } = pending;
+        if (touched) {
+          pending.touched = undefined;
+          this._reconcileDirty(pending, touched);
         }
-      });
-    }
+        // Reconciling first is what lets the `edit` trigger's dirty guard read a
+        // current value from inside its own notification.
+        pending.listeners?.forEach((callback) => callback());
+      }
+    });
   }
 
   /**
@@ -770,7 +804,7 @@ export class StoreManager {
   remove(storeName: string) {
     const entry = this._stores.get(storeName);
     if (entry) {
-      this._pendingMutates.delete(entry);
+      this._pendingFlush.delete(entry);
     }
     this._stores.delete(storeName);
   }

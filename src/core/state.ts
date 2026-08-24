@@ -6,7 +6,7 @@ import { warn } from './diagnostics';
  * `deepEqual`, and `patchState` so all three agree on what counts as state
  * worth snapshotting, diffing, or writing back.
  */
-function isOwnDataProp(obj: object, key: string): boolean {
+export function isOwnDataProp(obj: object, key: string): boolean {
   const desc = Object.getOwnPropertyDescriptor(obj, key);
   if (!desc) return false;
   if (desc.get || desc.set) return false;
