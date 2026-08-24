@@ -55,6 +55,30 @@ export function setNestedVal(obj: any, path: string | undefined, value: any): vo
 }
 
 /**
+ * Deletes the value at `path`. Walks to the parent and removes the leaf key. A missing
+ * or primitive intermediate is a no-op since there is nothing to delete.
+ */
+export function deleteNestedVal(obj: any, path: string | undefined): void {
+  if (!obj || typeof obj !== 'object' || !path) return;
+
+  const parts = getPathParts(path);
+  const lastKey = parts[parts.length - 1];
+
+  if (lastKey === undefined || KEY_BLOCKLIST.includes(lastKey)) return;
+
+  let current = obj;
+
+  for (let i = 0; i < parts.length - 1; i++) {
+    const part = parts[i] as string;
+    if (KEY_BLOCKLIST.includes(part)) return;
+    if (current[part] == null || typeof current[part] !== 'object') return;
+    current = current[part];
+  }
+
+  delete current[lastKey];
+}
+
+/**
  * Returns the first segment of a dot-path, or `undefined` when the path is
  * empty. Maps a nested path back to its root store/scope key.
  */

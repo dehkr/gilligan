@@ -3,7 +3,6 @@ import type {
   ITEM_KEY,
   ITEM_META_KEY,
   ListenTarget,
-  PatchAction,
   RENDER_PARENT,
   SwapMethod,
 } from './core/constants';
@@ -136,8 +135,6 @@ export interface BaseStorePatch {
   operation: 'push' | 'pull' | 'fetch';
   /** Dot-path of the targeted slice, when only part of the store was patched. */
   nestedPath?: string;
-  /** Patch action applied to the store data (`replace` or `merge`). */
-  action?: PatchAction;
 }
 
 /** Detail for `rz:store:patch`. */

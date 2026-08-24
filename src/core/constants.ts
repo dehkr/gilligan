@@ -62,17 +62,6 @@ export function isHttpMethod(key: string | undefined): key is HttpMethod {
   return HTTP_METHODS.includes(key?.toUpperCase() as HttpMethod);
 }
 
-/** List of valid store patch methods. */
-export const PATCH_ACTIONS = ['replace', 'merge'] as const;
-
-/** Represents a valid store patch method string. */
-export type PatchAction = (typeof PATCH_ACTIONS)[number];
-
-/** Type guard to check if a given string is a valid PatchAction. */
-export function isPatchAction(key: string | undefined): key is PatchAction {
-  return PATCH_ACTIONS.includes(key?.toLowerCase() as PatchAction);
-}
-
 /**
  * Bare trigger modifiers that set a boolean `TriggerOptions` field. Each names
  * its field directly except `stop-immediate`, whose kebab-case declarative

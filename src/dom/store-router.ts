@@ -44,7 +44,7 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
  *
  * @param stores - Store names to deposit into (from `rz-target`'s `@store` targets).
  * @param payload - The parsed JSON body to write into each store.
- * @param response - Carries the server's `Rouse-Store-Action` header, if it sent one.
+ * @param response - The response that produced the payload, surfaced on the rz:store:patch detail.
  */
 function routeToStore(
   app: RouseApp,

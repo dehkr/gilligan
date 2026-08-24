@@ -148,10 +148,9 @@ export function deepEqual(a: any, b: any, seen = new WeakMap<object, any>()): bo
 }
 
 /**
- * Replaces or merges the state of a reactive target with the source payload.
- *
- * - 'replace': Strict overwrite. Deletes missing keys.
- * - 'merge': Deep merges plain objects. Strictly overwrites arrays and primitives.
+ * Writes `source` into `target`. `replace` deletes keys absent from the source;
+ * `merge` applies JSON Merge Patch (RFC 7396) semantics, where absent keys are
+ * left alone and a `null` removes the key it names.
  */
 export function patchState(
   target: Record<string, any>,
@@ -191,10 +190,24 @@ export function patchState(
       continue;
     }
 
+    // RFC 7396: null values indicate removal
+    if (sourceVal === null) {
+      delete target[sourceKey];
+      continue;
+    }
+
     const targetVal = target[sourceKey];
 
-    if (isPlainObject(sourceVal) && isPlainObject(targetVal)) {
-      patchState(targetVal, sourceVal, 'merge');
+    // An object patched over a non-object target seeds `{}` and merges into it
+    // rather than being assigned wholesale, which is what drops the nulls nested
+    // inside it. Re-read after seeding: the proxy wraps what was just written.
+    if (isPlainObject(sourceVal)) {
+      if (isPlainObject(targetVal)) {
+        patchState(targetVal, sourceVal, 'merge');
+      } else {
+        target[sourceKey] = {};
+        patchState(target[sourceKey], sourceVal, 'merge');
+      }
     } else {
       target[sourceKey] = sourceVal;
     }

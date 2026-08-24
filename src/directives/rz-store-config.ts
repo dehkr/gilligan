@@ -1,9 +1,4 @@
-import {
-  type HttpMethod,
-  isHttpMethod,
-  isPatchAction,
-  type PatchAction,
-} from '../core/constants';
+import { type HttpMethod, isHttpMethod } from '../core/constants';
 import { warn } from '../core/diagnostics';
 import type { SyncPolicy } from '../core/store';
 import type { ConfigDirective } from '../types';
@@ -13,7 +8,6 @@ import { type ConfigValueType, parseKeyedConfig, TRANSPORT_KEYS } from './reques
 const KEYS: Record<string, ConfigValueType> = {
   ...TRANSPORT_KEYS,
   'push-method': 'string',
-  action: 'string',
   'rollback-on-error': 'boolean',
 };
 
@@ -22,10 +16,10 @@ const KEYS: Record<string, ConfigValueType> = {
  * Written as `key: value` pairs.
  *
  * - `rz-store-config="url: /api/cart, push-method: put"`
- * - `rz-store-config="action: merge, rollback-on-error: true"`
+ * - `rz-store-config="rollback-on-error: true"`
  */
 function getConfig(el: Element): Partial<SyncPolicy> {
-  const { pushMethod, action, ...transport } = parseKeyedConfig(el, 'store-config', KEYS);
+  const { pushMethod, ...transport } = parseKeyedConfig(el, 'store-config', KEYS);
   const cfg: Partial<SyncPolicy> = transport;
 
   if (pushMethod !== undefined) {
@@ -34,14 +28,6 @@ function getConfig(el: Element): Partial<SyncPolicy> {
     } else {
       __DEV__ &&
         warn(`rz-store-config: unknown HTTP method '${pushMethod}'. Ignoring.`, el);
-    }
-  }
-
-  if (action !== undefined) {
-    if (isPatchAction(action)) {
-      cfg.action = action.toLowerCase() as PatchAction;
-    } else {
-      __DEV__ && warn(`rz-store-config: unknown action '${action}'. Ignoring.`, el);
     }
   }
 

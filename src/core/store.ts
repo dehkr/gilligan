@@ -13,16 +13,11 @@ import type {
 } from '../types';
 import type { RouseApp } from './app';
 import { getDirectiveValue } from './attributes';
-import {
-  type HttpMethod,
-  isPatchAction,
-  type PatchAction,
-  STORE_PREFIX,
-} from './constants';
+import { type HttpMethod, STORE_PREFIX } from './constants';
 import { fail, warn } from './diagnostics';
 import { parseStoreRef } from './parser';
-import { getNestedVal, getPathRoot, setNestedVal } from './path';
-import { clone, deepEqual, patchState } from './state';
+import { deleteNestedVal, getNestedVal, getPathRoot, setNestedVal } from './path';
+import { clone, deepEqual, isPlainObject, patchState } from './state';
 
 export interface StoreStatus {
   loading: false | 'push' | 'pull';
@@ -48,13 +43,10 @@ export interface SyncPolicy extends Omit<SyncRequest, 'url' | 'indicator'> {
   url: string;
   /** HTTP method for push. Defaults to `POST`. Pull is always `GET`. */
   pushMethod?: HttpMethod;
-  /** How a response payload is written into the store. Defaults to `replace`. */
-  action?: PatchAction;
 }
 
 export interface StoreRequestOptions {
   url?: string;
-  action?: PatchAction;
   /** `triggerEl` is omitted: the top-level field is its only home. */
   overrides?: Omit<SyncRequest, 'triggerEl'>;
   nestedPath?: string;
@@ -82,29 +74,17 @@ function sliceAt(obj: any, path?: string) {
 }
 
 /**
- * The patch action the client intends to apply, before the server gets a say.
- */
-function requestedAction(
-  manualConfig?: StoreRequestOptions,
-  policy?: SyncPolicy,
-): PatchAction {
-  return manualConfig?.action || policy?.action || 'replace';
-}
-
-/**
  * Protocol headers describing the sync to the server. Merged under the user layers,
  * so `rz-headers="Rouse-Store: null"` can drop any of them.
  */
 function syncHeaders(
   operation: 'push' | 'pull',
   storeName: string,
-  action: PatchAction,
   nestedPath?: string,
 ): Record<string, string> {
   const headers: Record<string, string> = {
     'Rouse-Sync': operation,
     'Rouse-Store': storeName,
-    'Rouse-Store-Action': action,
   };
 
   if (nestedPath) {
@@ -112,22 +92,6 @@ function syncHeaders(
   }
 
   return headers;
-}
-
-/**
- * Reads a `Rouse-Store-Action` response header. Returns undefined when the server didn't
- * declare one, leaving the caller's own default in play. The server is the only
- * party that knows whether it sent the whole document or a partial.
- */
-function resolveResponseAction(result: RouseResponse): PatchAction | undefined {
-  const header = result.headers?.['rouse-store-action'];
-  if (!header) return undefined;
-  if (isPatchAction(header)) {
-    return header.toLowerCase() as PatchAction;
-  }
-
-  __DEV__ && warn(`Ignoring unknown 'Rouse-Store-Action' response header: '${header}'.`);
-  return undefined;
 }
 
 /**
@@ -267,13 +231,7 @@ export class StoreManager {
     const { data, config } = entry;
     const overrides = manualConfig?.overrides ?? {};
     const policy: Partial<SyncPolicy> = config ?? {};
-    const {
-      url: policyUrl,
-      pushMethod,
-      action: _policyAction,
-      headers: policyHeaders,
-      ...transport
-    } = policy;
+    const { url: policyUrl, pushMethod, headers: policyHeaders, ...transport } = policy;
 
     const url = manualConfig?.url || overrides.url || policyUrl;
 
@@ -286,7 +244,6 @@ export class StoreManager {
     const method = operation === 'push' ? pushMethod || 'POST' : 'GET';
 
     const nestedPath = manualConfig?.nestedPath;
-    const action = requestedAction(manualConfig, config);
 
     // Layers, later wins: protocol defaults, app config, store policy, programmatic
     // overrides. Headers merge per key so one layer never drops another's keys.
@@ -295,7 +252,7 @@ export class StoreManager {
       ...transport,
       ...overrides,
       headers: {
-        ...syncHeaders(operation, storeName, action, nestedPath),
+        ...syncHeaders(operation, storeName, nestedPath),
         ...this.app.config.headers,
         ...policyHeaders,
         ...overrides.headers,
@@ -409,9 +366,8 @@ export class StoreManager {
     snapshot: any,
     manualConfig?: StoreRequestOptions,
   ) {
-    const { name: storeName, data, status, config } = entry;
+    const { name: storeName, data, status } = entry;
 
-    const action = resolveResponseAction(result) ?? requestedAction(manualConfig, config);
     const nestedPath = manualConfig?.nestedPath;
 
     // Request-scoped, not response-scoped: a 200 means the data reached the server,
@@ -431,7 +387,6 @@ export class StoreManager {
         data,
         payload: result.data,
         nestedPath,
-        action,
       },
       { cancelable: true },
     );
@@ -456,12 +411,11 @@ export class StoreManager {
           serverData: sliceAt(payload, nestedPath),
           response: result,
           nestedPath,
-          action,
         });
         return;
       }
 
-      this._patchPayload(data, payload, action, nestedPath);
+      this._patchPayload(data, payload, nestedPath);
     }
 
     if (operation === 'pull') {
@@ -477,41 +431,47 @@ export class StoreManager {
       response: result,
       payload,
       nestedPath,
-      action,
     });
   }
 
   /**
-   * Writes the payload into the store, whole or at `nestedPath`. Merging needs an
-   * object on both sides; anything else replaces. A nested path missing from the
-   * payload writes nothing.
+   * Applies the payload to the store as a JSON Merge Patch, whole or at
+   * `nestedPath`. A path absent from the payload writes nothing; a `null` at the
+   * path removes the slice.
    */
-  private _patchPayload(
-    data: any,
-    payload: any,
-    action: PatchAction,
-    nestedPath?: string,
-  ) {
+  private _patchPayload(data: any, payload: any, nestedPath?: string) {
     if (!nestedPath) {
-      this._withPatchGuard(() => patchState(data, payload, action));
+      this._withPatchGuard(() => patchState(data, payload, 'merge'));
       return;
     }
 
     const incoming = getNestedVal(payload, nestedPath);
     if (incoming === undefined) return;
 
+    if (incoming === null) {
+      this._withPatchGuard(() => deleteNestedVal(data, nestedPath));
+      return;
+    }
+
     this._withPatchGuard(() => {
-      const target = getNestedVal(data, nestedPath);
-      if (
-        action === 'merge' &&
-        target &&
-        typeof target === 'object' &&
-        incoming &&
-        typeof incoming === 'object'
-      ) {
-        patchState(target, incoming, 'merge');
-      } else {
+      if (!isPlainObject(incoming)) {
         setNestedVal(data, nestedPath, incoming);
+        return;
+      }
+
+      let target = getNestedVal<Record<string, any>>(data, nestedPath);
+
+      // Seed an object when the slice is missing or holds a non-object, so the
+      // merge drops nulls nested inside the incoming patch (RFC 7396).
+      if (!isPlainObject(target)) {
+        setNestedVal(data, nestedPath, {});
+        target = getNestedVal<Record<string, any>>(data, nestedPath);
+      }
+
+      // `setNestedVal` bails when an intermediate is a primitive, so the seed
+      // may not have landed.
+      if (target) {
+        patchState(target, incoming, 'merge');
       }
     });
   }
@@ -535,7 +495,7 @@ export class StoreManager {
    * Patches the store's data, then makes it the new baseline: both restore targets
    * (`reset()` and rollback) and the dirty flags are refreshed to match.
    */
-  private _adoptState(entry: StoreEntry, state: object, action: PatchAction) {
+  private _adoptState(entry: StoreEntry, state: object, action: 'replace' | 'merge') {
     this._withPatchGuard(() => patchState(entry.data, state, action));
     entry.initial = clone(entry.data);
     this._updateLastGood(entry, entry.data);
@@ -671,44 +631,32 @@ export class StoreManager {
   }
 
   /**
-   * Overwrites store state, clears dirty flags, resets the store's initial data
-   * snapshot, and pulls the snapshot of the most recently server-confirmed state.
+   * Replaces the store's data, then clears dirty flags and refreshes both
+   * snapshots: the one `reset()` restores to, and the last-good state a failed push
+   * rolls back to. To change the store's sync configuration, use `config()`.
    */
-  update<T extends object = any>(
-    storeName: string,
-    state: object,
-    config?: Partial<SyncPolicy>,
-  ): T {
+  update<T extends object = any>(storeName: string, state: object): T {
     const entry = this._stores.get(storeName);
     if (!entry) {
       fail(`Store '${storeName}' does not exist.`);
     }
 
-    const action = config?.action || entry.config?.action || 'replace';
-    this._adoptState(entry, state, action);
-
-    if (config) {
-      this._setConfig(entry, config);
-    }
+    this._adoptState(entry, state, 'replace');
 
     return entry.data;
   }
 
   /**
-   * Writes a whole payload into a store, the way a fetch response routed by
-   * `rz-target` does. Fires the same events a push or pull fires, so a listener
-   * sees one shape whatever produced the payload.
-   *
-   * The action comes from the response's `Rouse-Store-Action` header, then `options.action`,
-   * then the store's configured action, then `replace`. None of them change the
-   * store's configuration.
+   * Writes a payload into a store as a JSON Merge Patch, the way a fetch response
+   * routed by `rz-target="@store"` does. Fires the same events a push or pull
+   * fires, so a listener sees one shape whatever produced the payload.
    *
    * @returns `false` if the store does not exist or a listener canceled the patch.
    */
   deposit(
     storeName: string,
     payload: object,
-    options?: { action?: PatchAction; response?: RouseResponse },
+    options?: { response?: RouseResponse },
   ): boolean {
     const entry = this._getStore(storeName);
     if (!entry) return false;
@@ -716,24 +664,17 @@ export class StoreManager {
     const { data } = entry;
     const response = options?.response;
 
-    const action =
-      (response && resolveResponseAction(response)) ||
-      options?.action ||
-      entry.config?.action ||
-      'replace';
-
     const beforeEvent = this._dispatchPatchEvent(
       entry,
       'rz:store:patch:before',
-      { storeName, operation: 'fetch', data, payload, action },
+      { storeName, operation: 'fetch', data, payload },
       { cancelable: true },
     );
     if (beforeEvent.defaultPrevented) return false;
 
-    // Whole payload, mutable by listeners, matching the sync path
     const applied = beforeEvent.detail.payload as object;
 
-    this._adoptState(entry, applied, action);
+    this._adoptState(entry, applied, 'merge');
     entry.status.lastSync = Date.now();
 
     this._dispatchPatchEvent(entry, 'rz:store:patch', {
@@ -741,7 +682,6 @@ export class StoreManager {
       operation: 'fetch',
       data,
       payload: applied,
-      action,
       response,
     });
 
