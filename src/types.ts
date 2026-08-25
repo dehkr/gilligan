@@ -173,8 +173,6 @@ export interface StorePatchRollbackDetail extends BaseStorePatch {
   rolledBackTo: any;
   /** The push error that triggered the rollback. */
   error: unknown;
-  /** Why the rollback occurred; always `'push-error'`. */
-  reason: 'push-error';
 }
 
 /** Detail for `rz:dom:swap:before` and `rz:dom:swap`. */

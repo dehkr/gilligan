@@ -36,6 +36,7 @@ Use `rz-headers` to set headers declaratively.
 - **Breaking:** Remove `method` from the options bag of `app.stores.push()` and `.pull()`. Set `pushMethod` on the store instead.
 - **Breaking:** Remove `mode`, `referrer`, `referrer-policy`, `integrity`, and `priority` keys from the config directives. They remain available programmatically and through a request interceptor.
 - **Breaking:** Remove the patch action everywhere it could be set: `rz-store-config="action: …"`, the `action` option on `push()` / `pull()` / `deposit()`, and the `action` field on every `rz:store:patch:*` event detail. Reconciliation is always a merge.
+- **Breaking:** Remove the `reason` field from the `rz:store:patch:rollback` event detail. It only ever held `'push-error'`, which the event name and the accompanying `error` already convey.
 
 ### Fixed
 

@@ -591,7 +591,6 @@ export class StoreManager {
       rolledBackTo,
       nestedPath,
       error,
-      reason: 'push-error',
     });
 
     return true;
