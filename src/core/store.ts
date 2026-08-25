@@ -805,6 +805,26 @@ export class StoreManager {
   }
 
   /**
+   * Returns `true` when the store has unsaved changes. Pass a dot path to ask
+   * about a single field or branch instead of the whole store.
+   *
+   * Without a path the answer comes from the store's status, which updates a
+   * microtask after an edit. With a path the comparison runs on the spot.
+   */
+  isDirty(storeName: string, path?: string): boolean {
+    const entry = this._getStore(storeName);
+    if (!entry) {
+      return false;
+    }
+
+    if (!path) {
+      return Object.keys(entry.status.dirty).length > 0;
+    }
+
+    return !deepEqual(getNestedVal(entry.data, path), getNestedVal(entry.lastGood, path));
+  }
+
+  /**
    * Patches `SyncPolicy` for a store. Warns if the store is missing.
    */
   config(storeName: string, config: Partial<SyncPolicy>) {
