@@ -43,6 +43,7 @@ Use `rz-headers` to set headers declaratively.
 overwrite a newer one (or roll back to a stale snapshot on failure).
 - Take `reset()` and rollback snapshots from the store's data rather than the incoming payload. Under `merge`, a partial payload became the restore target, so a later
 `reset()` or a failed push restored a partial store.
+- Clear a store's dirty flag when an edit is reverted.
 
 ## [0.12.0] - 2026-08-13
 
