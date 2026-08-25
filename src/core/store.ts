@@ -134,7 +134,9 @@ export function resolveTarget(
     }
 
     const target = parseStoreRef(subject, slug);
-    if (!target) return null;
+    if (!target) {
+      return null;
+    }
 
     const { source: storeName, nestedPath } = target;
 
@@ -217,7 +219,9 @@ export class StoreManager {
       this._setConfig(entry, programmaticConfig);
     }
 
-    if (el) entry.el = el;
+    if (el) {
+      entry.el = el;
+    }
 
     return entry;
   }
@@ -390,10 +394,14 @@ export class StoreManager {
       // A superseded request must not touch store data. Its snapshot is stale, so
       // both the reconcile and the rollback target belong to a request that no
       // longer owns the store. `finally` already leaves `loading` to the winner.
-      if (entry.activeReq !== reqToken) return result;
+      if (entry.activeReq !== reqToken) {
+        return result;
+      }
 
       if (result.error) {
-        if (result.error.status === 'CANCELED') return result;
+        if (result.error.status === 'CANCELED') {
+          return result;
+        }
 
         status.error = result.error.message;
 
@@ -453,10 +461,9 @@ export class StoreManager {
     // fetched data itself.
     if (payload && typeof payload === 'object') {
       const localSlice = sliceAt(data, nestedPath);
-      const snapSlice = sliceAt(snapshot, nestedPath);
 
       // Local state moved mid-flight; keep the edit and skip the echo
-      if (!deepEqual(localSlice, snapSlice)) {
+      if (!deepEqual(localSlice, sliceAt(snapshot, nestedPath))) {
         this._dispatchPatchEvent(entry, 'rz:store:patch:skipped', {
           storeName,
           operation,
@@ -556,6 +563,17 @@ export class StoreManager {
     this._updateLastGood(entry, entry.data);
   }
 
+  /** Writes `value` into the store's data, whole or at `path`, as a framework write. */
+  private _writeSlice(entry: StoreEntry, path: string | undefined, value: any) {
+    this._withPatchGuard(entry, () => {
+      if (path) {
+        setNestedVal(entry.data, path, value);
+      } else {
+        patchState(entry.data, value, 'replace');
+      }
+    });
+  }
+
   private _maybeRollback(
     entry: StoreEntry,
     snapshot: any,
@@ -563,26 +581,21 @@ export class StoreManager {
     error: unknown,
   ): boolean {
     const { name: storeName, data, lastGood } = entry;
-    if (lastGood === undefined) return false;
 
     // Skip when the user has kept editing during flight
     const localSlice = sliceAt(data, nestedPath);
-    const snapSlice = sliceAt(snapshot, nestedPath);
-    if (!deepEqual(localSlice, snapSlice)) return false;
+    if (!deepEqual(localSlice, sliceAt(snapshot, nestedPath))) {
+      return false;
+    }
 
     // Skip if data already equals lastGood (avoids firing errant signals)
     const lastGoodSlice = sliceAt(lastGood, nestedPath);
-    if (deepEqual(localSlice, lastGoodSlice)) return false;
+    if (deepEqual(localSlice, lastGoodSlice)) {
+      return false;
+    }
 
     const rolledBackTo = clone(lastGoodSlice);
-
-    this._withPatchGuard(entry, () => {
-      if (nestedPath) {
-        setNestedVal(data, nestedPath, rolledBackTo);
-      } else {
-        patchState(data, rolledBackTo, 'replace');
-      }
-    });
+    this._writeSlice(entry, nestedPath, rolledBackTo);
 
     this._dispatchPatchEvent(entry, 'rz:store:patch:rollback', {
       storeName,
@@ -627,7 +640,9 @@ export class StoreManager {
    */
   onEdit(storeName: string, callback: () => void): VoidFn {
     const entry = this._stores.get(storeName);
-    if (!entry) return () => {};
+    if (!entry) {
+      return () => {};
+    }
 
     let listeners = entry.listeners;
     if (!listeners) {
@@ -716,7 +731,9 @@ export class StoreManager {
     options?: { response?: RouseResponse },
   ): boolean {
     const entry = this._getStore(storeName);
-    if (!entry) return false;
+    if (!entry) {
+      return false;
+    }
 
     const { data } = entry;
     const response = options?.response;
@@ -727,7 +744,9 @@ export class StoreManager {
       { storeName, operation: 'fetch', data, payload },
       { cancelable: true },
     );
-    if (beforeEvent.defaultPrevented) return false;
+    if (beforeEvent.defaultPrevented) {
+      return false;
+    }
 
     const applied = beforeEvent.detail.payload as object;
 
@@ -758,6 +777,16 @@ export class StoreManager {
   snapshot<T = any>(storeName: string): T | undefined {
     const data = this._stores.get(storeName)?.data;
     return data ? clone(data) : undefined;
+  }
+
+  /**
+   * Returns a copy of the last state the server confirmed, or the state last
+   * asserted with `update()`. Pair it with `snapshot()` to work out what changed.
+   * Non-reactive, like `snapshot()`.
+   */
+  baseline<T = any>(storeName: string): T | undefined {
+    const lastGood = this._stores.get(storeName)?.lastGood;
+    return lastGood ? clone(lastGood) : undefined;
   }
 
   /**
@@ -803,8 +832,10 @@ export class StoreManager {
   }
 
   /**
-   * Reverts a store to its initial state, clears dirty flags, and pulls
-   * the snapshot of the most recently server-confirmed state.
+   * Restores the store to its initial state, and makes that the new baseline,
+   * so nothing reads as dirty afterward.
+   *
+   * To restore the last state the server confirmed instead, use `revert()`.
    */
   reset(storeName: string) {
     const entry = this._stores.get(storeName);
@@ -817,6 +848,46 @@ export class StoreManager {
 
     this._withPatchGuard(entry, () => patchState(data, clone(initial), 'replace'));
     this._updateLastGood(entry, data);
+  }
+
+  /**
+   * Discards unsaved changes, restoring the store from the last state the server
+   * confirmed, or the state last asserted with `update()`. Pass a dot path to
+   * revert a single field or branch instead of the whole store. Returns `true` if
+   * anything changed.
+   *
+   * To restore the state the store started with, use `reset()`.
+   */
+  revert(storeName: string, path?: string): boolean {
+    const entry = this._stores.get(storeName);
+    if (!entry) {
+      __DEV__ && warn(`Cannot revert store '${storeName}': store not found.`);
+      return false;
+    }
+
+    const lastGoodSlice = sliceAt(entry.lastGood, path);
+    if (deepEqual(sliceAt(entry.data, path), lastGoodSlice)) {
+      return false;
+    }
+
+    this._writeSlice(entry, path, clone(lastGoodSlice));
+    return true;
+  }
+
+  /**
+   * Marks the store's current data as the new baseline, so nothing reads as dirty.
+   * Does not send anything to the server. Use it when state reached the server by
+   * some means Rouse did not perform, such as a native form submit or a socket
+   * acknowledgement.
+   */
+  commit(storeName: string) {
+    const entry = this._stores.get(storeName);
+    if (!entry) {
+      __DEV__ && warn(`Cannot commit store '${storeName}': store not found.`);
+      return;
+    }
+
+    this._updateLastGood(entry, entry.data);
   }
 
   /**
