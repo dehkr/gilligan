@@ -248,23 +248,30 @@ function bindStoreEditTrigger(
   fire: VoidFn,
   nestedPath: string,
 ): VoidFn {
-  const rootKey = nestedPath ? getPathRoot(nestedPath) : null;
+  const rootKey = getPathRoot(nestedPath);
 
+  // Re-checked when the timer fires, not when it was armed: the value may have
+  // been pushed, reset, or retyped back to the baseline in between.
   const guardedFire = () => {
-    const status = app.stores.status(storeName);
-    if (!status) return;
-    const hasDirty = rootKey
-      ? !!status.dirty[rootKey]
-      : Object.keys(status.dirty).length > 0;
-    if (!hasDirty) return;
-    fire();
+    if (app.stores.isDirty(storeName, rootKey)) {
+      fire();
+    }
   };
 
-  const debouncedFire = applyTiming(guardedFire, options);
-  const stopListener = app.stores.onEdit(storeName, debouncedFire);
+  const timedFire = applyTiming(guardedFire, options);
+
+  // Filter here outside the timing wrapper. `debounce` forwards only the last
+  // batch's roots, so filtering inside would drop an edit to the target root
+  // whenever a different root was edited later in the same window.
+  const handleEdit = (roots: ReadonlySet<string>) => {
+    if (rootKey && !roots.has(rootKey)) return;
+    timedFire();
+  };
+
+  const stopListener = app.stores.onEdit(storeName, handleEdit);
 
   return () => {
-    debouncedFire.cancel();
+    timedFire.cancel();
     stopListener();
   };
 }

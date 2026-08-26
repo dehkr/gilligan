@@ -26,6 +26,9 @@ import {
   patchState,
 } from './state';
 
+/** Receives the store roots that changed in one batch of user edits. */
+export type EditListener = (roots: ReadonlySet<string>) => void;
+
 export interface StoreStatus {
   loading: false | 'push' | 'pull';
   error: string | null;
@@ -70,7 +73,7 @@ interface StoreEntry {
   lastGood?: any;
   activeReq?: symbol;
   el?: Element;
-  listeners?: Set<VoidFn>;
+  listeners?: Set<EditListener>;
   touched?: Set<string>;
 }
 
@@ -623,14 +626,14 @@ export class StoreManager {
       this._pendingFlush.clear();
 
       for (const pending of flushing) {
-        const { touched } = pending;
-        if (touched) {
-          pending.touched = undefined;
-          this._reconcileDirty(pending, touched);
-        }
+        const touched = pending.touched ?? new Set<string>();
+        pending.touched = undefined;
+
+        this._reconcileDirty(pending, touched);
+
         // Reconciling first is what lets the `edit` trigger's dirty guard read a
         // current value from inside its own notification.
-        pending.listeners?.forEach((callback) => callback());
+        pending.listeners?.forEach((callback) => callback(touched));
       }
     });
   }
@@ -638,7 +641,7 @@ export class StoreManager {
   /**
    * Listens for user-driven mutations to the store. Returns a cleanup function.
    */
-  onEdit(storeName: string, callback: () => void): VoidFn {
+  onEdit(storeName: string, callback: EditListener): VoidFn {
     const entry = this._stores.get(storeName);
     if (!entry) {
       return () => {};
@@ -780,9 +783,10 @@ export class StoreManager {
   }
 
   /**
-   * Returns a copy of the last state the server confirmed, or the state last
-   * asserted with `update()`. Pair it with `snapshot()` to work out what changed.
-   * Non-reactive, like `snapshot()`.
+   * Returns a copy of the last synced state: what a push or pull last confirmed,
+   * or what `commit()`, `update()`, or `deposit()` last asserted. This is the
+   * reference point for unsaved changes and the target a failed push rolls back
+   * to. Non-reactive, like `snapshot()`.
    */
   baseline<T = any>(storeName: string): T | undefined {
     const lastGood = this._stores.get(storeName)?.lastGood;
@@ -871,10 +875,9 @@ export class StoreManager {
   }
 
   /**
-   * Discards unsaved changes, restoring the store from the last state the server
-   * confirmed, or the state last asserted with `update()`. Pass a dot path to
-   * revert a single field or branch instead of the whole store. Returns `true` if
-   * anything changed.
+   * Discards unsaved changes, restoring the store to the last synced state, which
+   * `baseline()` returns. Pass a dot path to revert a single field or branch
+   * instead of the whole store. Returns `true` if anything changed.
    *
    * To restore the state the store started with, use `reset()`.
    */

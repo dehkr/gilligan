@@ -10,8 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add the `rz-indicator` directive. Takes a CSS selector for elements that receive the `rouse-request` class while a request from the host element is in flight.
-- Add `app.stores.deposit(name, payload, options?)`, the programmatic form of routing a JSON response into a store with `rz-target="@store"`.
 - Send three protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, and `Rouse-Path` (when syncing a slice).
+- Add new store helper functions:
+  - `app.stores.baseline(name)` returns a copy of the last synced state, the reference point for unsaved changes.
+  - `app.stores.commit(name)` sets the store's current data as the new baseline without sending anything to the server.
+  - `app.stores.revert(name, path?)` discards unsaved changes by restoring from the last confirmed state.
+  - `app.stores.isDirty(name, path?)` checks for unsaved store changes.
+  - `app.stores.deposit(name, payload, options?)` routes a JSON response into a store.
 
 ### Changed
 
@@ -21,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Stop resolving direct `@store` and `#json-id` references in config values. Config directive values are literal text. `params` and `body` accept an inline JSON object; every other key takes its value as written.
 - **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.
 - **Breaking:** Reject store-only options on `ctx.fetch` and `app.fetch`. `ctx.fetch(url, { rollbackOnError: true })` was accepted and silently ignored; it is now a type error.
+- **Breaking:** Pass the set of edited root keys to `app.stores.onEdit(name, callback)` callbacks, which previously received no arguments.
 - Merge programmatic headers with declarative ones per key instead of replacing them wholesale.
 - Fire the same events with the same detail when a fetch response is deposited into a store as when a push or pull writes to it, including `payload` and `response`.
 
@@ -40,10 +46,8 @@ Use `rz-headers` to set headers declaratively.
 
 ### Fixed
 
-- Apply only the newest push or pull to a store. Two overlapping requests could previously write to the store in arrival order, letting a slow earlier response
-overwrite a newer one (or roll back to a stale snapshot on failure).
-- Take `reset()` and rollback snapshots from the store's data rather than the incoming payload. Under `merge`, a partial payload became the restore target, so a later
-`reset()` or a failed push restored a partial store.
+- Apply only the newest push or pull to a store. Two overlapping requests could previously write to the store in arrival order, letting a slow earlier response overwrite a newer one (or roll back to a stale snapshot on failure).
+- Take `reset()` and rollback snapshots from the store's data rather than the incoming payload. Under `merge`, a partial payload became the restore target, so a later `reset()` or a failed push restored a partial store.
 - Clear a store's dirty flag when an edit is reverted.
 
 ## [0.12.0] - 2026-08-13
