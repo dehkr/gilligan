@@ -640,9 +640,12 @@ export class StoreManager {
 
   /**
    * Listens for user-driven mutations to the store. Returns a cleanup function.
+   *
+   * The store must already exist. Stores declared in markup using `<script rz-store>`
+   * are registered during `start()`, so subscribe after that call rather than before it.
    */
   onEdit(storeName: string, callback: EditListener): VoidFn {
-    const entry = this._stores.get(storeName);
+    const entry = this._getStore(storeName);
     if (!entry) {
       return () => {};
     }
