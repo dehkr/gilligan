@@ -15,7 +15,6 @@ import type {
   TriggerSubjectPair,
   VoidFn,
 } from '../types';
-import { rzFetchConfig } from './rz-fetch-config';
 
 const EXAMPLES = {
   fetch: 'click: /users',
@@ -102,7 +101,7 @@ function applySubmitterOverrides(baseOpts: FetchRequest, e?: Event): FetchReques
  */
 function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[]) {
   const cleanups: VoidFn[] = [];
-  const elementUrl = rzFetchConfig.getConfig(el).url || nativeUrl(el);
+  const elementUrl = nativeUrl(el);
 
   // A form without a URL at init can still get one at submit time from the
   // submitter's `formaction`, so bind anyway and validate on dispatch.
@@ -122,7 +121,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
     if (!url && !deferUrl) {
       if (__DEV__ && !warnedMissingUrl) {
         warn(
-          `rz-fetch: no URL found. Configure it using data-rz-fetch (with at least one leading trigger), data-rz-fetch-config, or a native 'href', 'action', or 'formaction' attribute.`,
+          `rz-fetch: no URL found. Configure it using data-rz-fetch (with at least one leading trigger), or a native 'href', 'action', or 'formaction' attribute.`,
           el,
         );
         warnedMissingUrl = true;
@@ -141,7 +140,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
         if (!opts.url) {
           __DEV__ &&
             warn(
-              `rz-fetch: no URL found. Configure it using data-rz-fetch (with at least one leading trigger), data-rz-fetch-config, or a native 'href', 'action', or 'formaction' attribute.`,
+              `rz-fetch: no URL found. Configure it using data-rz-fetch (with at least one leading trigger), or a native 'href', 'action', or 'formaction' attribute.`,
               el,
             );
           return;

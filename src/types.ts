@@ -16,7 +16,7 @@ export type DirectiveSlug =
   | 'attr'
   | 'class'
   | 'fetch'
-  | 'fetch-config'
+  | 'fetch-init'
   | 'headers'
   | 'html'
   | 'indicator'
@@ -502,7 +502,7 @@ export interface BaseRequestConfig {
     string,
     string | number | boolean | null | undefined | string[] | number[]
   >;
-  /** Skip all registered interceptors for this request. */
+  /** Skip all registered interceptors for this request. Programmatic only. */
   skipInterceptors?: boolean;
   /** Abort the request after this many milliseconds. */
   timeout?: number;

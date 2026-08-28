@@ -1,7 +1,7 @@
 export { rzAttr, rzHtml, rzProp, rzText } from './bound-writers';
 export { rzFetch, rzPull, rzPush } from './network-ops';
 export { rzClass } from './rz-class';
-export { rzFetchConfig } from './rz-fetch-config';
+export { rzFetchInit } from './rz-fetch-init';
 export { rzHeaders } from './rz-headers';
 export { rzIndicator } from './rz-indicator';
 export { rzKey } from './rz-key';

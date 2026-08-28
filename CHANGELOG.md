@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add the `rz-indicator` directive. Takes a CSS selector for elements that receive the `rouse-request` class while a request from the host element is in flight.
+- Add the `rz-resource` directive. Takes the URL a store pushes to and pulls from.
 - Send three protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, and `Rouse-Path` (when syncing a slice).
 - Add new store helper functions:
   - `app.stores.baseline(name)` returns a copy of the last synced state, the reference point for unsaved changes.
@@ -20,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **Breaking:** Consolidate the request-config directives. `rz-request` and `rz-fetch-request` become `rz-fetch-config`; `rz-push-request` and `rz-pull-request` become `rz-store-config` on the store element. `rz-push` and `rz-pull` are configured on the store, not on the trigger
+- **Breaking:** Consolidate the request-config directives. `rz-request` and `rz-fetch-request` become `rz-fetch-init`; `rz-push-request` and `rz-pull-request` are replaced by `rz-resource` on the store element, which takes the endpoint URL and nothing else.
 - **Breaking:** Adopt [JSON Merge Patch (RFC 7396)](https://www.rfc-editor.org/rfc/rfc7396) as the store sync format in both directions. A push is sent as `PATCH` with `Content-Type: application/merge-patch+json` and every server payload is reconciled as a merge patch: keys the payload omits are left alone, nested objects merge, arrays and primitives overwrite, and a key set to `null` is removed.
 - **Breaking:** Stop resolving direct `@store` and `#json-id` references in config values. Config directive values are literal text. `params` and `body` accept an inline JSON object; every other key takes its value as written.
 - **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.
@@ -37,13 +38,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Remove store context aliasing for scopes. `rz-scope="@store"` no longer aliases store data. Reference stores directly from directives instead.
 - **Breaking:** Remove `rz-fetch-headers`, `rz-push-headers`, and `rz-pull-headers`.
 Use `rz-headers` to set headers declaratively.
-- **Breaking:** Remove the `rz-url` directive; subsumed by the `url` field in `rz-fetch-config` and `rz-store-config`.
+- **Breaking:** Remove the `rz-url` directive. A fetch takes its URL from `rz-fetch` (`click: /path`) or a native `href`, `action`, or `formaction`; a store takes its endpoint from `rz-resource`.
 - **Breaking:** Remove `@store` references as URLs. A dynamic endpoint belongs in an interceptor or a programmatic call.
 - **Breaking:** Remove `pullMethod` from store config. A pull carries no body, so it is always `GET`.
 - **Breaking:** Remove `push-method` and `SyncPolicy.pushMethod`. A push is always `PATCH`.
 - **Breaking:** Remove `method` from the options bag of `app.stores.push()` and `.pull()`.
+- **Breaking:** Remove the `url` and `skip-interceptors` keys from the fetch config directive; `skipInterceptors` remains available programmatically.
+- **Breaking:** Remove declarative transport config for stores. A store element takes its endpoint (`rz-resource`) and `rz-headers`, nothing more. `timeout`, `params`, `credentials`, `abort-key`, `keepalive`, `redirect`, `cache`, and `skip-interceptors` remain available programmatically through `app.stores.config()` and request interceptors.
 - **Breaking:** Remove `mode`, `referrer`, `referrer-policy`, `integrity`, and `priority` keys from the config directives. They remain available programmatically and through a request interceptor.
-- **Breaking:** Remove the patch action everywhere it could be set: `rz-store-config="action: …"`, the `action` option on `push()` / `pull()` / `deposit()`, and the `action` field on every `rz:store:patch:*` event detail. Reconciliation is always a merge.
+- **Breaking:** Remove the patch action everywhere it could be set: the store's request config, the `action` option on `push()` / `pull()` / `deposit()`, and the `action` field on every `rz:store:patch:*` event detail. Reconciliation is always a merge.
 - **Breaking:** Remove the `reason` field from the `rz:store:patch:rollback` event detail. It only ever held `'push-error'`, which the event name and the accompanying `error` already convey.
 
 ### Fixed

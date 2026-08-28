@@ -1,6 +1,6 @@
 import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
-import { rzFetchConfig } from '../directives/rz-fetch-config';
+import { rzFetchInit } from '../directives/rz-fetch-init';
 import { rzHeaders } from '../directives/rz-headers';
 import type { FetchRequest, RequestError, RouseResponse } from '../types';
 import { preparePayload } from './payload';
@@ -156,7 +156,7 @@ export async function request<T = any>(
  * defaults with directive-driven config layers in priority order (later wins):
  *
  *   1. global defaults (`app.config.*`)
- *   2. `rz-fetch-config` and `rz-headers` on the triggering element
+ *   2. `rz-fetch-init` and `rz-headers` on the triggering element
  *
  * Headers follow the same chain, merged separately so per-key overrides win
  * without losing unrelated header keys from earlier layers.
@@ -171,7 +171,7 @@ export function resolveRequestConfig(
 ): Partial<FetchRequest> {
   const config: Partial<FetchRequest> = {
     credentials: app.config.credentials,
-    ...(triggerEl ? rzFetchConfig.getConfig(triggerEl) : {}),
+    ...(triggerEl ? rzFetchInit.getConfig(triggerEl) : {}),
   };
 
   config.headers = {

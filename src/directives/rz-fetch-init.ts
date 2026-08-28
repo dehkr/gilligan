@@ -2,18 +2,22 @@ import { getDirectiveValue } from '../core/attributes';
 import { warn } from '../core/diagnostics';
 import { parseDirectiveValue, safeJSONParse } from '../core/parser';
 import { parseTime } from '../core/timing';
-import type { DirectiveSlug } from '../types';
+import type { ConfigDirective, FetchRequest } from '../types';
 
 /** How a config value is coerced. `any` takes inline JSON or a literal. */
-export type ConfigValueType = 'string' | 'boolean' | 'duration' | 'object' | 'any';
+type ConfigValueType = 'string' | 'boolean' | 'duration' | 'object' | 'any';
 
-/** Keys accepted by every request-config directive. */
-export const TRANSPORT_KEYS = {
-  url: 'string',
+/**
+ * Keys `rz-fetch-init` accepts, and how each value is coerced. A key outside this
+ * table warns and is dropped, so a typo or a key belonging to another directive
+ * can't sit in a config doing nothing.
+ */
+const KEYS = {
+  method: 'string',
+  body: 'any',
   params: 'object',
   timeout: 'duration',
   'abort-key': 'string',
-  'skip-interceptors': 'boolean',
   credentials: 'string',
   keepalive: 'boolean',
   redirect: 'string',
@@ -21,16 +25,15 @@ export const TRANSPORT_KEYS = {
 } as const satisfies Record<string, ConfigValueType>;
 
 /**
- * Parses a request-config directive value against the directive's key table.
- * A key outside the table is rejected rather than stored, so a typo or a key
- * belonging to another directive can't sit in a config doing nothing.
+ * Request options for the element's `rz-fetch`, written as `key: value` pairs.
+ * `params` takes an inline JSON object; `body` can also take an inline JSON object
+ * or a literal string.
+ *
+ * @example
+ * <button data-rz-fetch="click: /save" data-rz-fetch-init="method: post, timeout: 5s">
  */
-export function parseKeyedConfig(
-  el: Element,
-  slug: DirectiveSlug,
-  keys: Record<string, ConfigValueType>,
-): Record<string, any> {
-  const value = getDirectiveValue(el, slug);
+function getConfig(el: Element): Partial<FetchRequest> {
+  const value = getDirectiveValue(el, 'fetch-init');
   if (!value) return {};
 
   const config: Record<string, any> = {};
@@ -38,14 +41,14 @@ export function parseKeyedConfig(
   for (const [key, rawVal] of parseDirectiveValue(value)) {
     if (!key) continue;
 
-    const type = keys[key];
+    const type = KEYS[key as keyof typeof KEYS];
 
     if (!type) {
       __DEV__ &&
         warn(
           key === 'headers' || key === 'indicator'
-            ? `rz-${slug}: '${key}' belongs on data-rz-${key}. Ignoring.`
-            : `rz-${slug}: unknown key '${key}'. Ignoring.`,
+            ? `rz-fetch-init: '${key}' belongs on data-rz-${key}. Ignoring.`
+            : `rz-fetch-init: unknown key '${key}'. Ignoring.`,
           el,
         );
       continue;
@@ -58,7 +61,7 @@ export function parseKeyedConfig(
     } else if (type === 'duration') {
       config[kebabToCamel(key)] = parseTime(val);
     } else if (type === 'object' || (type === 'any' && isObjectLiteral(val))) {
-      const obj = parseObject(val, key, el, slug);
+      const obj = parseObject(val, key, el);
       if (obj !== undefined) {
         config[kebabToCamel(key)] = obj;
       }
@@ -67,7 +70,7 @@ export function parseKeyedConfig(
     }
   }
 
-  return config;
+  return config as Partial<FetchRequest>;
 }
 
 function isObjectLiteral(val: string) {
@@ -78,20 +81,25 @@ function isObjectLiteral(val: string) {
  * Parses an inline JSON object. Returns undefined when the value isn't one, so the
  * caller can leave the key unset rather than write a malformed config value.
  */
-function parseObject(val: string, key: string, el: Element, slug: DirectiveSlug) {
+function parseObject(val: string, key: string, el: Element) {
   if (isObjectLiteral(val)) {
     try {
       return safeJSONParse(val);
     } catch {
-      __DEV__ && warn(`rz-${slug}: '${key}' is not valid JSON: ${val}`, el);
+      __DEV__ && warn(`rz-fetch-init: '${key}' is not valid JSON: ${val}`, el);
       return undefined;
     }
   }
 
-  __DEV__ && warn(`rz-${slug}: '${key}' must be an inline JSON object. Got: ${val}`, el);
+  __DEV__ &&
+    warn(`rz-fetch-init: '${key}' must be an inline JSON object. Got: ${val}`, el);
   return undefined;
 }
 
 function kebabToCamel(str: string) {
   return str.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
 }
+
+export const rzFetchInit = { getConfig } as const satisfies ConfigDirective<
+  Partial<FetchRequest>
+>;
