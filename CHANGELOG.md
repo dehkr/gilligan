@@ -21,8 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking:** Consolidate the request-config directives. `rz-request` and `rz-fetch-request` become `rz-fetch-config`; `rz-push-request` and `rz-pull-request` become `rz-store-config` on the store element. `rz-push` and `rz-pull` are configured on the store, not on the trigger
-- **Breaking:** Reconcile every store sync server payload as a [JSON Merge Patch (RFC 7396)](https://www.rfc-editor.org/rfc/rfc7396). Keys the payload omits are left alone, nested objects merge, arrays and primitives overwrite, and a key set to `null` is removed.
-- **Breaking:** Change the store's `method` option to `push-method`. Pull is always `GET`, so a bare `method` implied it affected both directions.
+- **Breaking:** Adopt [JSON Merge Patch (RFC 7396)](https://www.rfc-editor.org/rfc/rfc7396) as the store sync format in both directions. A push is sent as `PATCH` with `Content-Type: application/merge-patch+json` and every server payload is reconciled as a merge patch: keys the payload omits are left alone, nested objects merge, arrays and primitives overwrite, and a key set to `null` is removed.
 - **Breaking:** Stop resolving direct `@store` and `#json-id` references in config values. Config directive values are literal text. `params` and `body` accept an inline JSON object; every other key takes its value as written.
 - **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.
 - **Breaking:** Reject store-only options on `ctx.fetch` and `app.fetch`. `ctx.fetch(url, { rollbackOnError: true })` was accepted and silently ignored; it is now a type error.
@@ -41,7 +40,8 @@ Use `rz-headers` to set headers declaratively.
 - **Breaking:** Remove the `rz-url` directive; subsumed by the `url` field in `rz-fetch-config` and `rz-store-config`.
 - **Breaking:** Remove `@store` references as URLs. A dynamic endpoint belongs in an interceptor or a programmatic call.
 - **Breaking:** Remove `pullMethod` from store config. A pull carries no body, so it is always `GET`.
-- **Breaking:** Remove `method` from the options bag of `app.stores.push()` and `.pull()`. Set `pushMethod` on the store instead.
+- **Breaking:** Remove `push-method` and `SyncPolicy.pushMethod`. A push is always `PATCH`.
+- **Breaking:** Remove `method` from the options bag of `app.stores.push()` and `.pull()`.
 - **Breaking:** Remove `mode`, `referrer`, `referrer-policy`, `integrity`, and `priority` keys from the config directives. They remain available programmatically and through a request interceptor.
 - **Breaking:** Remove the patch action everywhere it could be set: `rz-store-config="action: …"`, the `action` option on `push()` / `pull()` / `deposit()`, and the `action` field on every `rz:store:patch:*` event detail. Reconciliation is always a merge.
 - **Breaking:** Remove the `reason` field from the `rz:store:patch:rollback` event detail. It only ever held `'push-error'`, which the event name and the accompanying `error` already convey.

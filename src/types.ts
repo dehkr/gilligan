@@ -524,7 +524,7 @@ export type FetchRequest = Omit<RequestInit, 'body' | 'headers'> & FetchConfig;
 /**
  * The authoring surface for a store push or pull. A push body is the store's own data
  * and a pull carries none, so `body` and `form` are absent by design. `method` is absent
- * too: push takes its verb from `SyncPolicy.pushMethod`, and pull is always `GET`.
+ * too: a push is always `PATCH` (RFC 7396 merge patch), and a pull always `GET`.
  */
 export type SyncRequest = Omit<RequestInit, 'body' | 'headers' | 'method'> &
   BaseRequestConfig;

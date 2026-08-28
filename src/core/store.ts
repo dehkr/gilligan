@@ -13,7 +13,7 @@ import type {
 } from '../types';
 import type { RouseApp } from './app';
 import { getDirectiveValue } from './attributes';
-import { type HttpMethod, STORE_PREFIX } from './constants';
+import { STORE_PREFIX } from './constants';
 import { fail, warn } from './diagnostics';
 import { parseStoreRef } from './parser';
 import { deleteNestedVal, getNestedVal, getPathRoot, setNestedVal } from './path';
@@ -51,8 +51,6 @@ export interface StoreTarget {
 export interface SyncPolicy extends Omit<SyncRequest, 'url' | 'indicator'> {
   /** Endpoint for push and pull. */
   url: string;
-  /** HTTP method for push. Defaults to `POST`. Pull is always `GET`. */
-  pushMethod?: HttpMethod;
 }
 
 export interface StoreRequestOptions {
@@ -96,6 +94,11 @@ function syncHeaders(
     'Rouse-Sync': operation,
     'Rouse-Store': storeName,
   };
+
+  // A push body is a JSON Merge Patch (RFC 7396). A pull carries no body.
+  if (operation === 'push') {
+    headers['Content-Type'] = 'application/merge-patch+json';
+  }
 
   if (nestedPath) {
     headers['Rouse-Path'] = nestedPath;
@@ -309,7 +312,7 @@ export class StoreManager {
     const { data, config } = entry;
     const overrides = manualConfig?.overrides ?? {};
     const policy: Partial<SyncPolicy> = config ?? {};
-    const { url: policyUrl, pushMethod, headers: policyHeaders, ...transport } = policy;
+    const { url: policyUrl, headers: policyHeaders, ...transport } = policy;
 
     const url = manualConfig?.url || overrides.url || policyUrl;
 
@@ -318,8 +321,8 @@ export class StoreManager {
       return;
     }
 
-    // Pull is prescribed GET; only push has a configurable verb.
-    const method = operation === 'push' ? pushMethod || 'POST' : 'GET';
+    // Both verbs are prescribed: a push is a merge patch, a pull carries no body.
+    const method = operation === 'push' ? 'PATCH' : 'GET';
 
     const nestedPath = manualConfig?.nestedPath;
 
