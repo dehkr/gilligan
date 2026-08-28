@@ -1,8 +1,8 @@
 import type {
   CustomErrorStatus,
   ErrorStatus,
+  FetchRequest,
   RequestError,
-  RouseRequest,
   RouseResponse,
 } from '../types';
 
@@ -11,7 +11,7 @@ import type {
  */
 export async function normalizeResponse(
   response: Response,
-  config: RouseRequest,
+  config: FetchRequest,
 ): Promise<RouseResponse> {
   let data: any = null;
   let error: RequestError | null = null;
@@ -110,7 +110,7 @@ export function mapCatchError(error: any, isMainAborted: boolean): RequestError 
  * Helper to return a structured response for early bailouts.
  */
 export function fallbackResponse(
-  config: RouseRequest,
+  config: FetchRequest,
   message: string,
   status: ErrorStatus = 'CANCELED',
 ): RouseResponse {

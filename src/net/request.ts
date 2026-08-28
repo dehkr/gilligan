@@ -2,7 +2,7 @@ import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
 import { rzFetchConfig } from '../directives/rz-fetch-config';
 import { rzHeaders } from '../directives/rz-headers';
-import type { FetchRequest, RequestError, RouseRequest, RouseResponse } from '../types';
+import type { FetchRequest, RequestError, RouseResponse } from '../types';
 import { preparePayload } from './payload';
 import { fallbackResponse, mapCatchError, normalizeResponse } from './response';
 
@@ -28,7 +28,7 @@ const abortRegistry = new Map<string | symbol, AbortEntry>();
  */
 export async function request<T = any>(
   url: string,
-  options: RouseRequest = {},
+  options: FetchRequest = {},
   app: RouseApp,
 ): Promise<RouseResponse<T>> {
   let currentOptions = { ...options };
@@ -185,7 +185,7 @@ export function resolveRequestConfig(
 /**
  * Wrap a `RequestError` into a `RouseResponse`.
  */
-function wrapErrorResponse(error: RequestError, options: RouseRequest) {
+function wrapErrorResponse(error: RequestError, options: FetchRequest) {
   return {
     data: null,
     error,

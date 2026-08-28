@@ -8,7 +8,6 @@ import { type ConfigValueType, parseKeyedConfig, TRANSPORT_KEYS } from './reques
 const KEYS: Record<string, ConfigValueType> = {
   ...TRANSPORT_KEYS,
   'push-method': 'string',
-  'rollback-on-error': 'boolean',
 };
 
 /**
@@ -16,7 +15,6 @@ const KEYS: Record<string, ConfigValueType> = {
  * Written as `key: value` pairs.
  *
  * - `data-rz-store-config="url: /api/cart, push-method: put"`
- * - `data-rz-store-config="rollback-on-error: true"`
  */
 function getConfig(el: Element): Partial<SyncPolicy> {
   const { pushMethod, ...transport } = parseKeyedConfig(el, 'store-config', KEYS);

@@ -1,10 +1,10 @@
 import { fail } from '../core/diagnostics';
-import type { RouseRequest } from '../types';
+import type { FetchRequest } from '../types';
 
 /**
  * Prepares the URL, headers, and body for a network request.
  */
-export function preparePayload(url: string, options: RouseRequest, baseUrl: string) {
+export function preparePayload(url: string, options: FetchRequest, baseUrl: string) {
   const { headers = {}, body, form, params, ...restOptions } = options;
   const method = (options.method || 'GET').toUpperCase();
 

@@ -61,7 +61,7 @@ export interface FetchConfigDetail {
    * The final unified request config. Mutable in place by listeners; replacing the object
    * has no effect on the request. Carries `method` but not the resolved `url`.
    */
-  config: RouseRequest;
+  config: FetchRequest;
   /** The resolved request URL actually fetched. Surfaced here because `config` does not carry it. */
   url: string;
   /** The resolved HTTP method. Also present on `config`; duplicated here for convenience. */
@@ -106,7 +106,7 @@ export interface PushPullConfigDetail {
    * The final unified request config. Mutable in place by listeners; replacing the object
    * has no effect on the request. Carries `method` but not the resolved `url`.
    */
-  config: RouseRequest;
+  config: FetchRequest;
   /** The resolved request URL. */
   url: string;
   /** The resolved HTTP method. */
@@ -257,7 +257,7 @@ export interface LifecycleEventMap {
   'rz:store:patch': StorePatchDetail;
   /** Fires when the response carries server data but the store was edited while the request was in flight, so the server data is not applied and the local edit is kept. Push and pull only. */
   'rz:store:patch:skipped': StorePatchSkippedDetail;
-  /** Fires after `rz:push:error` when `rollbackOnError` reverts local state to the last-good snapshot. */
+  /** Fires after `rz:push:error` when local state is reverted to the last-good snapshot. */
   'rz:store:patch:rollback': StorePatchRollbackDetail;
   /** Fires before the swap executes; cancelable. Listeners can mutate `payload`. */
   'rz:dom:swap:before': DomSwapDetail;
@@ -518,29 +518,16 @@ export interface FetchConfig extends BaseRequestConfig {
   form?: HTMLFormElement;
 }
 
-/**
- * Options for a store push or pull. A push body is the store's own data, and a pull
- * carries none, so `body` and `form` are absent by design.
- */
-export interface SyncConfig extends BaseRequestConfig {
-  /** When true, auto-revert local state on push failure. Ignored by pull. */
-  rollbackOnError?: boolean;
-}
-
 /** The final unified options object for a fetch. */
 export type FetchRequest = Omit<RequestInit, 'body' | 'headers'> & FetchConfig;
 
 /**
- * The final unified options object for a store push or pull. `method` is absent:
- * push takes its verb from `SyncPolicy.pushMethod` and pull is always `GET`.
+ * The authoring surface for a store push or pull. A push body is the store's own data
+ * and a pull carries none, so `body` and `form` are absent by design. `method` is absent
+ * too: push takes its verb from `SyncPolicy.pushMethod`, and pull is always `GET`.
  */
-export type SyncRequest = Omit<RequestInit, 'body' | 'headers' | 'method'> & SyncConfig;
-
-/**
- * A fetch request that may also carry sync options. The union home for the network
- * layer and interceptors, which handle both paths.
- */
-export type RouseRequest = FetchRequest & SyncConfig;
+export type SyncRequest = Omit<RequestInit, 'body' | 'headers' | 'method'> &
+  BaseRequestConfig;
 
 /**
  * The callable fetch surface. The HTTP method comes from `options.method`,
@@ -564,27 +551,27 @@ export interface RouseResponse<T = any> {
   /** HTTP status code, or `null` for non-HTTP failures. */
   status: number | null;
   /** The resolved request config that produced this response. */
-  config: RouseRequest;
+  config: FetchRequest;
   /** Server-supplied swap target override (`Rouse-Target` header), if present. */
   targetOverride?: string | null;
 }
 
 /** Runs before a request is sent. Return a modified config to override request options. */
 export type RequestInterceptor = (
-  config: RouseRequest,
-) => RouseRequest | Promise<RouseRequest>;
+  config: FetchRequest,
+) => FetchRequest | Promise<FetchRequest>;
 
 /** Runs after a successful response is received. Return a modified value to override response data. */
 export type ResponseInterceptor = (
   data: any,
   response: Response,
-  config: RouseRequest,
+  config: FetchRequest,
 ) => any | Promise<any>;
 
 /** Runs when a request fails. Return a modified error to override what propagates. */
 export type ErrorInterceptor = (
   error: RequestError,
-  config: RouseRequest,
+  config: FetchRequest,
 ) => RequestError | Promise<RequestError>;
 
 /** The three points in the request lifecycle where interceptors can be registered. */

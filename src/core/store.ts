@@ -4,8 +4,8 @@ import { request } from '../net/request';
 import { reactive, seedPropagation, trackDirty } from '../reactivity/reactive';
 import type {
   DirectiveSlug,
+  FetchRequest,
   LifecycleEventMap,
-  RouseRequest,
   RouseResponse,
   StorePatchEvent,
   SyncRequest,
@@ -60,7 +60,6 @@ export interface StoreRequestOptions {
   /** `triggerEl` is omitted: the top-level field is its only home. */
   overrides?: Omit<SyncRequest, 'triggerEl'>;
   nestedPath?: string;
-  rollbackOnError?: boolean;
   triggerEl?: Element;
 }
 
@@ -326,7 +325,7 @@ export class StoreManager {
 
     // Layers, later wins: protocol defaults, app config, store policy, programmatic
     // overrides. Headers merge per key so one layer never drops another's keys.
-    const requestOptions: RouseRequest = {
+    const requestOptions: FetchRequest = {
       credentials: this.app.config.credentials,
       ...transport,
       ...overrides,
@@ -339,11 +338,6 @@ export class StoreManager {
       method,
       triggerEl: manualConfig?.triggerEl,
       abortKey: overrides.abortKey ?? transport.abortKey ?? `${operation}_${storeName}`,
-      rollbackOnError:
-        manualConfig?.rollbackOnError ??
-        overrides.rollbackOnError ??
-        transport.rollbackOnError ??
-        false,
     };
 
     // Body for push: full data, or a nested slice if nestedPath is provided
@@ -369,15 +363,15 @@ export class StoreManager {
   }
 
   /**
-   * Sends the request and applies the outcome to the store: rolls back a failed
-   * push when configured, otherwise reconciles the response. Tracks the request so
-   * a superseded one leaves `loading` alone when it settles.
+   * Sends the request and applies the outcome to the store: rolls back a failed push,
+   * otherwise reconciles the response. Tracks the request so a superseded one leaves
+   * `loading` alone when it settles.
    */
   private async _sendAndApply(
     entry: StoreEntry,
     operation: 'push' | 'pull',
     url: string,
-    requestOptions: RouseRequest,
+    requestOptions: FetchRequest,
     handle: LifecycleHandle,
     manualConfig?: StoreRequestOptions,
   ): Promise<RouseResponse> {
@@ -408,7 +402,7 @@ export class StoreManager {
 
         status.error = result.error.message;
 
-        if (operation === 'push' && requestOptions.rollbackOnError) {
+        if (operation === 'push') {
           this._maybeRollback(entry, snapshot, manualConfig?.nestedPath, result.error);
         }
         return result;
@@ -582,20 +576,16 @@ export class StoreManager {
     snapshot: any,
     nestedPath: string | undefined,
     error: unknown,
-  ): boolean {
+  ): void {
     const { name: storeName, data, lastGood } = entry;
 
     // Skip when the user has kept editing during flight
     const localSlice = sliceAt(data, nestedPath);
-    if (!deepEqual(localSlice, sliceAt(snapshot, nestedPath))) {
-      return false;
-    }
+    if (!deepEqual(localSlice, sliceAt(snapshot, nestedPath))) return;
 
     // Skip if data already equals lastGood (avoids firing errant signals)
     const lastGoodSlice = sliceAt(lastGood, nestedPath);
-    if (deepEqual(localSlice, lastGoodSlice)) {
-      return false;
-    }
+    if (deepEqual(localSlice, lastGoodSlice)) return;
 
     const rolledBackTo = clone(lastGoodSlice);
     this._writeSlice(entry, nestedPath, rolledBackTo);
@@ -608,8 +598,6 @@ export class StoreManager {
       nestedPath,
       error,
     });
-
-    return true;
   }
 
   /**
