@@ -101,7 +101,7 @@ Order within that list does not matter. What matters is that it comes first.
   <span data-rz-text="count"></span>
 </div>
 
-<script data-rz-store="user" data-rz-store-config="url: /api/user" type="application/json">
+<script data-rz-store="user" data-rz-resource="/api/user" type="application/json">
   { "name": "Ada" }
 </script>
 

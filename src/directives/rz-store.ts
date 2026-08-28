@@ -4,13 +4,13 @@ import { err, warn } from '../core/diagnostics';
 import type { SyncPolicy } from '../core/store';
 import type { StandaloneDirective } from '../types';
 import { rzHeaders } from './rz-headers';
-import { rzStoreConfig } from './rz-store-config';
+import { rzResource } from './rz-resource';
 
 const initialized = new WeakSet<HTMLScriptElement>();
 
 /**
  * Bootstraps a global reactive store from a `<script>` tag. Initializes the reactive
- * data registry and seeds the store's URL from `rz-store-config` if present.
+ * data registry and seeds the store's URL from `rz-resource` if present.
  *
  * Push/pull triggers (`rz-push`, `rz-pull`) are wired separately, so the store doesn't
  * need to know about them.
@@ -47,8 +47,13 @@ function initialize(el: HTMLScriptElement, app: RouseApp) {
     }
   }
 
-  const cfg: Partial<SyncPolicy> = { ...rzStoreConfig.getConfig(el) };
+  const cfg: Partial<SyncPolicy> = {};
+  const url = rzResource.getConfig(el);
   const headers = rzHeaders.getConfig(el);
+
+  if (url) {
+    cfg.url = url;
+  }
 
   if (Object.keys(headers).length) {
     cfg.headers = headers;

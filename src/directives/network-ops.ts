@@ -178,9 +178,9 @@ function bindStorePairs(
         `rz-${op}: data-rz-headers on a trigger element is ignored. Set headers on the store's <script data-rz-store> element.`,
         el,
       );
-    hasDirective(el, 'store-config') &&
+    hasDirective(el, 'resource') &&
       warn(
-        `rz-${op}: data-rz-store-config on a trigger element is ignored. Configure the store on its <script data-rz-store> element.`,
+        `rz-${op}: data-rz-resource on a trigger element is ignored. Set the endpoint on the store's <script data-rz-store> element.`,
         el,
       );
   }
