@@ -1,12 +1,10 @@
 import type { DirectiveSlug } from '../types';
 
 /**
- * Generates a CSS selector matching both prefix styles (`[rz-text], [data-rz-text]`).
- * Pass `tag` to qualify both entries; prefixing the returned string yourself
- * qualifies only the first.
+ * Generates a CSS selector matching a directive, optionally qualified by `tag`.
  */
 export function directiveSelector(slug: DirectiveSlug, tag = ''): string {
-  return `${tag}[rz-${slug}], ${tag}[data-rz-${slug}]`;
+  return `${tag}[data-rz-${slug}]`;
 }
 
 /**
@@ -14,14 +12,14 @@ export function directiveSelector(slug: DirectiveSlug, tag = ''): string {
  * the directive isn't present.
  */
 export function getDirectiveValue(el: Element, slug: DirectiveSlug): string | null {
-  return el.getAttribute(`rz-${slug}`) ?? el.getAttribute(`data-rz-${slug}`);
+  return el.getAttribute(`data-rz-${slug}`);
 }
 
 /**
  * Checks if the element has a specific directive.
  */
 export function hasDirective(el: Element, slug: DirectiveSlug): boolean {
-  return el.hasAttribute(`rz-${slug}`) || el.hasAttribute(`data-rz-${slug}`);
+  return el.hasAttribute(`data-rz-${slug}`);
 }
 
 /**
