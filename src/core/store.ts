@@ -86,7 +86,7 @@ function sliceAt(obj: any, path?: string) {
 
 /**
  * Protocol headers describing the sync to the server. Merged under the user layers,
- * so `rz-headers="Rouse-Store: null"` can drop any of them.
+ * so `data-rz-headers="Rouse-Store: null"` can drop any of them.
  */
 function syncHeaders(
   operation: 'push' | 'pull',
@@ -155,7 +155,7 @@ export function resolveTarget(
   if (!selfName) {
     __DEV__ &&
       warn(
-        `rz-${slug}: missing store reference. To self-reference a store on a <script> element, add rz-store as well.`,
+        `rz-${slug}: missing store reference. To self-reference a store on a <script> element, add data-rz-store as well.`,
         el,
       );
     return null;
@@ -641,7 +641,7 @@ export class StoreManager {
   /**
    * Listens for user-driven mutations to the store. Returns a cleanup function.
    *
-   * The store must already exist. Stores declared in markup using `<script rz-store>`
+   * The store must already exist. Stores declared in markup using `<script data-rz-store>`
    * are registered during `start()`, so subscribe after that call rather than before it.
    */
   onEdit(storeName: string, callback: EditListener): VoidFn {
@@ -669,14 +669,14 @@ export class StoreManager {
   }
 
   /**
-   * Retrieves the source `<script rz-store>` element for a registered store.
+   * Retrieves the source `<script data-rz-store>` element for a registered store.
    */
   elementFor(storeName: string): Element | undefined {
     return this._stores.get(storeName)?.el;
   }
 
   /**
-   * Returns an iterable object containing every `<script rz-store>` element
+   * Returns an iterable object containing every `<script data-rz-store>` element
    * registered in the store manager.
    */
   *elements(): Iterable<Element> {
@@ -726,7 +726,7 @@ export class StoreManager {
 
   /**
    * Writes a payload into a store as a JSON Merge Patch, the way a fetch response
-   * routed by `rz-target="@store"` does. Fires the same events a push or pull
+   * routed by `data-rz-target="@store"` does. Fires the same events a push or pull
    * fires, so a listener sees one shape whatever produced the payload.
    *
    * @returns `false` if the store does not exist or a listener canceled the patch.

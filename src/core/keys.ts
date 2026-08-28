@@ -16,7 +16,7 @@ let count = 46656;
  * const key = createKey(); // 'rz_mbx3k2f81000'
  * todos.items.push({ key, text });
  * // In HTML, use as stable id via `rz-key`
- * <template rz-render="items" rz-key="key">
+ * <template data-rz-render="items" data-rz-key="key">
  */
 export function createKey(prefix = 'rz_') {
   return prefix + session + (count++).toString(36);

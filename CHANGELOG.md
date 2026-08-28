@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.
 - **Breaking:** Reject store-only options on `ctx.fetch` and `app.fetch`. `ctx.fetch(url, { rollbackOnError: true })` was accepted and silently ignored; it is now a type error.
 - **Breaking:** Pass the set of edited root keys to `app.stores.onEdit(name, callback)` callbacks, which previously received no arguments.
+- **Breaking:** Require the `data-` prefix on every directive attribute; e.g. `rz-on` becomes `data-rz-on`.
 - Merge programmatic headers with declarative ones per key instead of replacing them wholesale.
 - Fire the same events with the same detail when a fetch response is deposited into a store as when a push or pull writes to it, including `payload` and `response`.
 

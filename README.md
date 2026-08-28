@@ -88,3 +88,68 @@ Types are bundled. No additional setup for TypeScript necessary.
 | Production | `dist/rouse.min.js` | Minified, diagnostics stripped. |
 
 Bundlers that set the standard `development`/`production` export conditions (Vite, webpack) get the right build automatically. Tools that don't (esbuild, Rollup) resolve to the minified build by default. Import `rousejs/dev` if you want diagnostics during development. `rousejs/min` always resolves to the minified build regardless of tool.
+
+## Getting started
+
+**Register your scopes, stores, interceptors, and listeners, then call `app.start()`.**
+
+Order within that list does not matter. What matters is that it comes first.
+
+```html
+<div data-rz-scope="counter">
+  <button data-rz-on="click: increment">Add one</button>
+  <span data-rz-text="count"></span>
+</div>
+
+<script data-rz-store="user" data-rz-store-config="url: /api/user" type="application/json">
+  { "name": "Ada" }
+</script>
+
+<input data-rz-model="@user.name">
+<button data-rz-push="click: @user">Save</button>
+```
+
+```js
+import { rouse, signal } from 'rousejs';
+
+const app = rouse();
+
+// Scopes: a setup function bound to a region of the page
+app.scope('counter', () => {
+  const count = signal(0);
+  return {
+    get count() {
+      return count();
+    },
+    increment() {
+      count(count() + 1);
+    },
+  };
+});
+
+// Stores: shared state, optionally synced with the server
+app.store('prefs', { theme: 'dark' });
+
+// Interceptors: run on every request
+app.interceptor('request', (config) => {
+  config.headers = { ...config.headers, Authorization: `Bearer ${token}` };
+  return config;
+});
+
+// Listeners
+app.on('rz:app:ready', () => console.log('wired up'));
+
+app.start();
+```
+
+### Why the order
+
+`start()` is not an initialization step that switches Rouse on. **It scans the page.** Directives are read from the DOM at that moment and wired to whatever is registered by then.
+
+So the rule is:
+
+> Anything registered before `start()` is available to that scan. Anything registered after applies only to DOM that arrives later.
+
+Registering after `start()` is legitimate, and it is how you wire up content added later, since Rouse keeps watching the page for new elements. It only surprises you when the markup was already there: a scope registered too late leaves its region unwired, and an interceptor registered too late misses requests the initial scan already fired.
+
+One wrinkle worth knowing if you reach for `app.stores` early: `app.store()` registers on the call, while a `<script data-rz-store>` tag is registered *during* `start()`. Both are fine if you follow the order above, but `app.stores.onEdit('user', …)` placed above the `start()` line will not find a store that was declared in HTML. The development build warns when that happens.

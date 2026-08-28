@@ -48,7 +48,7 @@ function defineNetworkOpDirective(
       if (pairs.length === 0) {
         __DEV__ &&
           warn(
-            `rz-${slug}: at least one trigger is required (e.g., rz-${slug}="${EXAMPLES[slug]}").`,
+            `rz-${slug}: at least one trigger is required (e.g., data-rz-${slug}="${EXAMPLES[slug]}").`,
             el,
           );
         return;
@@ -122,7 +122,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
     if (!url && !deferUrl) {
       if (__DEV__ && !warnedMissingUrl) {
         warn(
-          `rz-fetch: no URL found. Configure it using rz-fetch (with at least one leading trigger), rz-fetch-config, or a native 'href', 'action', or 'formaction' attribute.`,
+          `rz-fetch: no URL found. Configure it using data-rz-fetch (with at least one leading trigger), data-rz-fetch-config, or a native 'href', 'action', or 'formaction' attribute.`,
           el,
         );
         warnedMissingUrl = true;
@@ -141,7 +141,7 @@ function bindFetchPairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[])
         if (!opts.url) {
           __DEV__ &&
             warn(
-              `rz-fetch: no URL found. Configure it using rz-fetch (with at least one leading trigger), rz-fetch-config, or a native 'href', 'action', or 'formaction' attribute.`,
+              `rz-fetch: no URL found. Configure it using data-rz-fetch (with at least one leading trigger), data-rz-fetch-config, or a native 'href', 'action', or 'formaction' attribute.`,
               el,
             );
           return;
@@ -175,12 +175,12 @@ function bindStorePairs(
   if (__DEV__ && !hasDirective(el, 'fetch') && !hasDirective(el, 'store')) {
     hasDirective(el, 'headers') &&
       warn(
-        `rz-${op}: rz-headers on a trigger element is ignored. Set headers on the store's <script rz-store> element.`,
+        `rz-${op}: data-rz-headers on a trigger element is ignored. Set headers on the store's <script data-rz-store> element.`,
         el,
       );
     hasDirective(el, 'store-config') &&
       warn(
-        `rz-${op}: rz-store-config on a trigger element is ignored. Configure the store on its <script rz-store> element.`,
+        `rz-${op}: data-rz-store-config on a trigger element is ignored. Configure the store on its <script data-rz-store> element.`,
         el,
       );
   }

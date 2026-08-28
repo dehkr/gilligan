@@ -15,8 +15,8 @@ const KEYS: Record<string, ConfigValueType> = {
  * Sync options for the store on this element, applied to every push and pull.
  * Written as `key: value` pairs.
  *
- * - `rz-store-config="url: /api/cart, push-method: put"`
- * - `rz-store-config="rollback-on-error: true"`
+ * - `data-rz-store-config="url: /api/cart, push-method: put"`
+ * - `data-rz-store-config="rollback-on-error: true"`
  */
 function getConfig(el: Element): Partial<SyncPolicy> {
   const { pushMethod, ...transport } = parseKeyedConfig(el, 'store-config', KEYS);

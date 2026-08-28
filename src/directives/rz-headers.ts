@@ -9,11 +9,11 @@ import type { ConfigDirective } from '../types';
  * request; an empty string is sent as is. Values that contain a comma should be
  * wrapped in quotes.
  *
- * - `rz-headers="Tenant: 123"`
- * - `rz-headers="Rouse-Request: null"`
- * - `rz-headers="X-Blank: ''"`
- * - `rz-headers="Accept: 'text/html, application/json'"`
- * - `rz-headers='{ "Tenant": 123 }'`
+ * - `data-rz-headers="Tenant: 123"`
+ * - `data-rz-headers="Rouse-Request: null"`
+ * - `data-rz-headers="X-Blank: ''"`
+ * - `data-rz-headers="Accept: 'text/html, application/json'"`
+ * - `data-rz-headers='{ "Tenant": 123 }'`
  */
 function getConfig(el: Element): Record<string, string | null> {
   return parseHeadersConfig(getDirectiveValue(el, 'headers'), el);

@@ -23,11 +23,11 @@ import type { ConfigDirective } from '../types';
  *
  * An empty value defaults to one swap targeting the host element.
  *
- * - `rz-target="afterbegin: #output"`
- * - `rz-target="#output"`
- * - `rz-target="outerHTML"`
- * - `rz-target="@store"`
- * - `rz-target="@status, beforeend: #status"`
+ * - `data-rz-target="afterbegin: #output"`
+ * - `data-rz-target="#output"`
+ * - `data-rz-target="outerHTML"`
+ * - `data-rz-target="@store"`
+ * - `data-rz-target="@status, beforeend: #status"`
  *
  * @param overrideValue - Takes precedence over the element's `rz-target` attribute (e.g. a server `Rouse-Target` header).
  */

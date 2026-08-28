@@ -217,7 +217,7 @@ export class RouseApp {
   }
 
   /**
-   * Registers scope setup functions by name. `rz-scope="counter"` resolves against
+   * Registers scope setup functions by name. `data-rz-scope="counter"` resolves against
    * the names registered here.
    *
    * Elements are wired as they are scanned, and a name that is not registered before

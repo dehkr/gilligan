@@ -7,7 +7,7 @@ import type { ConfigDirective } from '../types';
  * the class itself. Write `null` to apply it to nothing.
  *
  * @example
- * <button rz-fetch="click: /save" rz-indicator="#spinner">Save</button>
+ * <button data-rz-fetch="click: /save" data-rz-indicator="#spinner">Save</button>
  */
 function getConfig(el: Element): string | null | undefined {
   const value = getDirectiveValue(el, 'indicator')?.trim();

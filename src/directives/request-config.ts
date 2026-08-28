@@ -44,7 +44,7 @@ export function parseKeyedConfig(
       __DEV__ &&
         warn(
           key === 'headers' || key === 'indicator'
-            ? `rz-${slug}: '${key}' belongs on rz-${key}. Ignoring.`
+            ? `rz-${slug}: '${key}' belongs on data-rz-${key}. Ignoring.`
             : `rz-${slug}: unknown key '${key}'. Ignoring.`,
           el,
         );
