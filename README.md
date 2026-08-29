@@ -55,7 +55,7 @@ Rouse ships as ES modules only, in two builds: a development build with diagnost
 
 ```html
 <script type="module">
-  import { rouse } from 'https://cdn.jsdelivr.net/npm/rousejs@0.12.0/dist/rouse.js';
+  import { rouse } from 'https://cdn.jsdelivr.net/npm/rousejs@0.13.0/dist/rouse.js';
 
   const app = rouse();
   app.start();
@@ -65,7 +65,7 @@ Rouse ships as ES modules only, in two builds: a development build with diagnost
 Swap in `rouse.min.js` for production:
 
 ```text
-https://cdn.jsdelivr.net/npm/rousejs@0.12.0/dist/rouse.min.js
+https://cdn.jsdelivr.net/npm/rousejs@0.13.0/dist/rouse.min.js
 ```
 
 ### From npm

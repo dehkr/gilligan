@@ -15,7 +15,7 @@ No unreleased changes.
 
 - Add the `rz-indicator` directive. Takes a CSS selector for elements that receive the `rouse-request` class while a request from the host element is in flight.
 - Add the `rz-resource` directive. Takes the URL a store pushes to and pulls from.
-- Send three protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, and `Rouse-Path` (when syncing a slice).
+- Send three `Rouse-*` protocol headers on every push and pull: `Rouse-Sync` (`push` or `pull`), `Rouse-Store`, and `Rouse-Path` (when syncing a slice).
 - Add new store helper functions:
   - `app.stores.baseline(name)` returns a copy of the last synced state, the reference point for unsaved changes.
   - `app.stores.commit(name)` sets the store's current data as the new baseline without sending anything to the server.
@@ -31,7 +31,6 @@ No unreleased changes.
 - **Breaking:** Adopt [JSON Merge Patch (RFC 7396)](https://www.rfc-editor.org/rfc/rfc7396) as the store sync format in both directions. A push is sent as `PATCH` with `Content-Type: application/merge-patch+json` and every server payload is reconciled as a merge patch: keys the payload omits are left alone, nested objects merge, arrays and primitives overwrite, and a key set to `null` is removed.
 - **Breaking:** Stop resolving direct `@store` and `#json-id` references in config values. Config directive values are literal text. `params` and `body` accept an inline JSON object; every other key takes its value as written.
 - **Breaking:** Rename the store destination lifecycle events: `rz:store:sync` becomes `rz:store:patch`, along with `:before`, `:skipped`, and `:rollback`.
-- **Breaking:** Reject store-only options on `ctx.fetch` and `app.fetch`. `ctx.fetch(url, { rollbackOnError: true })` was accepted and silently ignored; it is now a type error.
 - **Breaking:** Pass the set of edited root keys to `app.stores.onEdit(name, callback)` callbacks, which previously received no arguments.
 - **Breaking:** Always roll a store back when a push fails; `rollback-on-error` and the `rollbackOnError` option are removed. A push that fails while the user has kept editing, or whose data already matches the last-good baseline, still leaves state alone.
 - **Breaking:** Require the `data-` prefix on every directive attribute; e.g. `rz-on` becomes `data-rz-on`.
@@ -42,8 +41,7 @@ No unreleased changes.
 
 - **Breaking:** Remove the `target` and `swap` fetch options, and stop `ctx.fetch` from targeting the scope host. `triggerEl` can be set to route a response through that element's `rz-target`, or place HTML manually with the exported `swap`.
 - **Breaking:** Remove store context aliasing for scopes. `rz-scope="@store"` no longer aliases store data. Reference stores directly from directives instead.
-- **Breaking:** Remove `rz-fetch-headers`, `rz-push-headers`, and `rz-pull-headers`.
-Use `rz-headers` to set headers declaratively.
+- **Breaking:** Remove `rz-fetch-headers`, `rz-push-headers`, and `rz-pull-headers`. Use `rz-headers` to set headers declaratively.
 - **Breaking:** Remove the `rz-url` directive. A fetch takes its URL from `rz-fetch` (`click: /path`) or a native `href`, `action`, or `formaction`; a store takes its endpoint from `rz-resource`.
 - **Breaking:** Remove `@store` references as URLs. A dynamic endpoint belongs in an interceptor or a programmatic call.
 - **Breaking:** Remove `pullMethod` from store config. A pull carries no body, so it is always `GET`.
@@ -51,14 +49,14 @@ Use `rz-headers` to set headers declaratively.
 - **Breaking:** Remove `method` from the options bag of `app.stores.push()` and `.pull()`.
 - **Breaking:** Remove the `url` and `skip-interceptors` keys from the fetch config directive; `skipInterceptors` remains available programmatically.
 - **Breaking:** Remove declarative transport config for stores. A store element takes its endpoint (`rz-resource`) and `rz-headers`, nothing more. `timeout`, `params`, `credentials`, `abort-key`, `keepalive`, `redirect`, `cache`, and `skip-interceptors` remain available programmatically through `app.stores.config()` and request interceptors.
-- **Breaking:** Remove `mode`, `referrer`, `referrer-policy`, `integrity`, and `priority` keys from the config directives. They remain available programmatically and through a request interceptor.
+- **Breaking:** Remove `mode`, `referrer`, `referrer-policy`, `integrity`, and `priority` keys from `rz-fetch-init`. They remain available programmatically and through a request interceptor.
 - **Breaking:** Remove the patch action everywhere it could be set: the store's request config, the `action` option on `push()` / `pull()` / `deposit()`, and the `action` field on every `rz:store:patch:*` event detail. Reconciliation is always a merge.
 - **Breaking:** Remove the `reason` field from the `rz:store:patch:rollback` event detail. It only ever held `'push-error'`, which the event name and the accompanying `error` already convey.
 
 ### Fixed
 
 - Apply only the newest push or pull to a store. Two overlapping requests could previously write to the store in arrival order, letting a slow earlier response overwrite a newer one (or roll back to a stale snapshot on failure).
-- Take `reset()` and rollback snapshots from the store's data rather than the incoming payload. Under `merge`, a partial payload became the restore target, so a later `reset()` or a failed push restored a partial store.
+- Take `reset()` and rollback snapshots from the store's data rather than the incoming payload. A partial payload became the restore target, so a later `reset()` or a failed push restored a partial store.
 - Clear a store's dirty flag when an edit is reverted.
 
 ## [0.12.0] - 2026-08-13
