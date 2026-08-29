@@ -49,6 +49,8 @@ export interface RouseConfig {
   headers?: Record<string, string | null>;
   /** Standard fetch `credentials` value applied to every request. */
   credentials?: RequestCredentials;
+  /** Abort every request after this many milliseconds. A per-request `timeout` overrides it; `0` (the default) means no deadline. */
+  timeout?: number;
   /** Default scope activation strategy. Overridden by `rz-wake`. */
   wake?: string;
 }
@@ -59,6 +61,7 @@ interface ResolvedConfig {
   headers: Record<string, string | null>;
   // Left undefined when not configured; fetch()'s native default is 'same-origin'.
   credentials?: RequestCredentials;
+  timeout: number;
   wake: string;
 }
 
@@ -188,6 +191,7 @@ export class RouseApp {
       baseUrl: config.baseUrl ?? '',
       headers: config.headers ?? {},
       credentials: config.credentials,
+      timeout: config.timeout ?? 0,
       wake: config.wake?.trim() || 'ready',
     };
 

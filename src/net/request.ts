@@ -171,6 +171,7 @@ export function resolveRequestConfig(
 ): Partial<FetchRequest> {
   const config: Partial<FetchRequest> = {
     credentials: app.config.credentials,
+    timeout: app.config.timeout,
     ...(triggerEl ? rzFetchInit.getConfig(triggerEl) : {}),
   };
 

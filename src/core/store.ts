@@ -330,6 +330,7 @@ export class StoreManager {
     // overrides. Headers merge per key so one layer never drops another's keys.
     const requestOptions: FetchRequest = {
       credentials: this.app.config.credentials,
+      timeout: this.app.config.timeout,
       ...transport,
       ...overrides,
       headers: {
