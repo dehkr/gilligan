@@ -1,6 +1,6 @@
 {
   "name": "rousejs",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "A JavaScript reactivity and state-sync layer for server-rendered HTML",
   "author": "dehkr <dehkr25@gmail.com>",
   "license": "MIT",
