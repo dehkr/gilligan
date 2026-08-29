@@ -21,10 +21,12 @@ const abortRegistry = new Map<string | symbol, AbortEntry>();
  * apply uniformly (`skipInterceptors` is the per-call opt-out). Handles payload
  * serialization, `abortKey` concurrency, timeouts, and response normalization.
  *
- * Does not reject on failure: network errors and non-OK statuses resolve as a
- * `RouseResponse` with `error` populated. Malformed config is the exception, since
- * `preparePayload` runs outside the catch and throws on an unusable URL or a
- * `body`/`form` conflict.
+ * A `GET` or `HEAD` that fails before any HTTP response arrives is retried once,
+ * immediately. That covers a dropped keep-alive socket or a network handoff, where
+ * nothing reached the server and so nothing can be duplicated. The retry happens
+ * below the lifecycle and above the error chain, so one failure still produces one
+ * terminal event and one interceptor pass. `TIMEOUT` and `CANCELED` are never
+ * retried, and neither is any other method.
  */
 export async function request<T = any>(
   url: string,
@@ -91,11 +93,13 @@ export async function request<T = any>(
 
   const combinedSignal = AbortSignal.any(signals);
 
-  const execute = async (): Promise<RouseResponse<T>> => {
+  const execute = async (attempt = 0): Promise<RouseResponse<T>> => {
     if (combinedSignal.aborted) {
       const status = mainSignal?.aborted ? 'CANCELED' : 'TIMEOUT';
       return fallbackResponse(currentOptions, 'Request canceled or timed out', status);
     }
+
+    let responded = false;
 
     try {
       const response = await fetch(finalUrl, {
@@ -105,6 +109,7 @@ export async function request<T = any>(
         ...fetchOptions,
         ...(safeBody != null ? { body: safeBody } : {}),
       });
+      responded = true;
 
       const normalized = await normalizeResponse(response, currentOptions);
 
@@ -127,6 +132,19 @@ export async function request<T = any>(
       return normalized;
     } catch (err: any) {
       let errorPayload = mapCatchError(err, !!mainSignal?.aborted);
+
+      // One immediate retry for idempotent reads. `!responded` is what makes this a
+      // transport check: NETWORK_ERROR is `mapCatchError`'s fallback for any non-abort
+      // throw, including one from a response interceptor, which must not re-send.
+      // TIMEOUT and CANCELED are excluded since both are deadlines someone set on purpose.
+      if (
+        !responded &&
+        attempt === 0 &&
+        errorPayload.status === 'NETWORK_ERROR' &&
+        (method === 'GET' || method === 'HEAD')
+      ) {
+        return execute(attempt + 1);
+      }
 
       // Error interceptors run on the final failure or explicit cancellation
       if (!currentOptions.skipInterceptors) {

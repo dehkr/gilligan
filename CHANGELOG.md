@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `app.stores.isDirty(name, path?)` checks for unsaved store changes.
   - `app.stores.deposit(name, payload, options?)` routes a JSON response into a store.
 - Add `timeout` to app config. Applies to every request; a per-request `timeout` overrides it, and `0` (the default) means no deadline.
+- Add a single automatic retry on a `GET` or `HEAD` request that doesn't reach the server. The retry is immediate and not configurable.
 
 ### Changed
 
