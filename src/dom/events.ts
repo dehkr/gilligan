@@ -121,7 +121,7 @@ function attachListener<D = any>(
  *
  * @example
  * ctx.on(el, 'click', handleClick, { debounce: 500 });
- * app.on(['page-visible', 'network-online'], sync);
+ * app.on(window, ['online', 'offline'], sync);
  */
 export function on<N extends string>(
   target: EventTarget,
@@ -356,30 +356,6 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   /** Opts the directive out of all auto-binding (explicit no-op). */
   none: () => null,
 
-  /**
-   * Fires when all assets (images, etc.) are fully loaded or immediately if the
-   * page has already loaded.
-   */
-  'page-loaded': ({ action }) => {
-    if (document.readyState === 'complete') {
-      action();
-      return null;
-    }
-    return attachWindowEvent('load', action);
-  },
-
-  /** Fires when the document becomes visible (e.g., tab switch, maximize). */
-  'page-visible': ({ action }) => attachVisibilityChange('visible', action),
-
-  /** Fires when the document becomes hidden (e.g., tab switch, minimize). */
-  'page-hidden': ({ action }) => attachVisibilityChange('hidden', action),
-
-  /** Fires when the browser gains access to the network. */
-  'network-online': ({ action }) => attachWindowEvent('online', action),
-
-  /** Fires when the browser loses access to the network. */
-  'network-offline': ({ action }) => attachWindowEvent('offline', action),
-
   /** Fires once after a specified period (`setTimeout`). */
   timeout: (ctx) => attachTimingSource('timeout', ctx),
 
@@ -463,33 +439,4 @@ function attachTimingSource(type: 'timeout' | 'interval', ctx: TriggerContext) {
 
   const id = setup(ctx.action, ms);
   return () => clear(id);
-}
-
-/**
- * Subscribes to a window-level event and returns a cleanup that
- * removes the listener.
- */
-function attachWindowEvent(event: string, action: ActionFn): VoidFn {
-  window.addEventListener(event, action);
-
-  return () => {
-    window.removeEventListener(event, action);
-  };
-}
-
-/**
- * Subscribes to the document `visibilitychange` event, firing `action`
- * when the document transitions to the specified state.
- */
-function attachVisibilityChange(state: 'visible' | 'hidden', action: ActionFn): VoidFn {
-  const handler = (e: Event) => {
-    if (document.visibilityState === state) {
-      action(e);
-    }
-  };
-
-  document.addEventListener('visibilitychange', handler);
-  return () => {
-    document.removeEventListener('visibilitychange', handler);
-  };
 }

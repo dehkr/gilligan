@@ -145,8 +145,8 @@ export class RouseApp {
    * @returns A teardown closure that removes the listener early.
    *
    * @example
-   * app.on('page-visible', refetch);
    * app.on('click', onClick, { debounce: 300 });
+   * app.on(document, 'visibilitychange', refetch);
    * app.on(window, ['online', 'offline'], sync);
    */
   public on: BoundOn;

@@ -19,7 +19,7 @@ import type {
 const EXAMPLES = {
   fetch: 'click: /users',
   push: 'click: @users',
-  pull: 'page-visible: @users',
+  pull: 'ready: @users',
 } as const;
 
 /**

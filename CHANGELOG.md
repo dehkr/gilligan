@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Removed
+
+- **Breaking:** Remove trigger sources that wrapped native events on `window` or `document`: `page-loaded`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.
 
 ## [0.13.0] - 2026-08-29
 
