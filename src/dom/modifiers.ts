@@ -62,7 +62,7 @@ export function resolveListenerTarget(el: Element, options: TriggerOptions): Eve
 
 /**
  * Applies event filters and determines if the handler should execute.
- * By default, modifiers are matched exactly (e.g., `key-enter` fires only on bare
+ * By default, modifiers are matched exactly (e.g., `key-[enter]` fires only on bare
  * Enter, not Shift+Enter). Use `loose` to allow extra modifiers.
  *
  * @returns `true` if the handler should execute, `false` otherwise
@@ -106,7 +106,7 @@ export function applyModifiers(e: Event, el: Element, options: TriggerOptions): 
 
     if (exact) {
       // Pressing a modifier key sets its own flag, so it isn't an extra modifier
-      // unless the trigger asked for it. Allows `keydown|key-shift` to work.
+      // unless the trigger asked for it. Allows `keydown|key-[shift]` to work.
       const selfFlag =
         e instanceof KeyboardEvent
           ? modifierKeyFlags.get(e.key.toLowerCase())

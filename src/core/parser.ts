@@ -143,36 +143,55 @@ export function parseTriggerSubjectPairs(
 }
 
 /**
- * Resolves dot-separated modifier tokens into `TriggerOptions`. A bare name is a
- * flag (`once`); a `name-value` token binds a value to that modifier
- * (`debounce-300ms`, `key-enter`); a bare time or `(query)` value is an argument
- * to the event (`interval|30s`).
+ * Splits a `name-[attribute]` token into its name and trimmed attribute, or
+ * `null` when the token carries no attribute.
+ */
+function parseAttrToken(token: string): [name: string, attr: string] | null {
+  if (!token.endsWith(']')) return null;
+
+  const open = token.indexOf('-[');
+  return open > 0 ? [token.slice(0, open), token.slice(open + 2, -1).trim()] : null;
+}
+
+/**
+ * Resolves dot-separated modifier tokens into `TriggerOptions`. A bare token is a
+ * flag (`once`) or a listener target (`window`); a `name-[attribute]` token binds
+ * a value to that modifier (`debounce-[300ms]`, `key-[enter]`); a bare time or
+ * `(query)` value is an argument to the event (`interval|30s`).
  */
 function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
   const options: TriggerOptions = {};
   const keys: string[] = [];
 
   for (const token of tokens) {
-    const dash = token.indexOf('-');
-    const name = dash > 0 ? token.slice(0, dash) : '';
-    const value = dash > 0 ? token.slice(dash + 1) : '';
+    const attrToken = parseAttrToken(token);
 
-    // Exact matches are tested first, so a hyphenated modifier name like
-    // `stop-immediate` isn't processed as a [name]-[value] pair.
+    if (attrToken) {
+      const [name, attr] = attrToken;
+
+      if (!attr) {
+        __DEV__ && warn(`Empty attribute on modifier '${name}' in trigger '${trigger}'.`);
+        continue;
+      }
+
+      if (name === 'key') {
+        const key = attr.toLowerCase();
+        keys.push(key === 'space' ? ' ' : key);
+      } else if (name === 'debounce' || name === 'throttle') {
+        options[name] = attr;
+      } else {
+        __DEV__ && warn(`Unknown modifier '${name}' in trigger '${trigger}'.`);
+      }
+
+      continue;
+    }
+
     if (isFlagModifier(token)) {
       options[token === 'stop-immediate' ? 'stopImmediate' : token] = true;
     } else if (isListenTarget(token)) {
       options.listenOn = token;
     } else if (token === 'debounce' || token === 'throttle') {
       options[token] = true;
-    } else if (name === 'key') {
-      __DEV__ &&
-        !value &&
-        warn(`Empty key modifier in trigger '${trigger}'. Name a key, e.g. 'key-enter'.`);
-      const key = value.toLowerCase();
-      keys.push(key === 'space' ? ' ' : key);
-    } else if (name === 'debounce' || name === 'throttle') {
-      options[name] = value || true;
     } else if (isTimeModifier(token)) {
       options.wait = token;
     } else if (token.startsWith('(') && token.endsWith(')')) {
@@ -191,11 +210,11 @@ function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
 
 /**
  * Parses a raw trigger string into trigger definitions, splitting on whitespace
- * outside quotes and boundaries. Commas are rejected; multi-trigger values are
- * space-separated.
+ * outside quotes and boundaries. Top-level commas are rejected; multi-trigger
+ * values are space-separated.
  *
  * @example
- * parseTriggers('click|throttle-300ms mouseenter|once mouseleave');
+ * parseTriggers('click|throttle-[300ms] mouseenter|once mouseleave');
  * // [
  * //   { event: 'click', options: { throttle: '300ms' } },
  * //   { event: 'mouseenter', options: { once: true } },
@@ -207,7 +226,9 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
   if (!raw) return [];
 
   raw = stripQuotes(raw);
-  if (raw.includes(',')) {
+
+  // A comma inside a bracketed attribute is data, not a separator: `key-[,]`
+  if (splitOnSafeDelimiter(raw, ',').length > 1) {
     __DEV__ && warn(`Separate multi-trigger values by spaces, not commas: '${raw}'.`);
     return [];
   }

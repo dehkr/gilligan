@@ -329,7 +329,7 @@ export type RenderContext = Scope & {
 /**
  * The canonical, resolved representation of a trigger's modifiers.
  *
- * The HTML grammar (`click|debounce-300ms.once`) is its serialized form, produced by
+ * The HTML grammar (`click|debounce-[300ms].once`) is its serialized form, produced by
  * `parseTriggers`. Consumers read fields from this object rather than scanning tokens.
  */
 export interface TriggerOptions {
