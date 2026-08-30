@@ -382,7 +382,7 @@ export interface TriggerOptions {
 
 /** Parsed trigger event with its resolved options. */
 export type TriggerDef = {
-  /** The DOM event or trigger-source name, stripped of modifiers. */
+  /** The DOM event or trigger-source name, stripped of its argument and modifiers. */
   event: string;
   /** The trigger's resolved modifiers. */
   options: TriggerOptions;

@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Breaking:** Remove trigger sources that wrapped native events on `window` or `document`: `page-loaded`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.
 
+### Fixed
+
+- Stop `rz-wake` from suppressing native navigation. A scope element that is a form or an anchor no longer swallows the `submit` or `click` that wakes it.
+
 ## [0.13.0] - 2026-08-29
 
 ### Added

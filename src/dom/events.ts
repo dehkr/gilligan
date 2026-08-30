@@ -26,9 +26,10 @@ export interface TriggerContext {
    * Whether to suppress the browser's native navigation before running the action.
    *
    * Defaults to `true`: directives on anchors and forms take ownership of the
-   * interaction. `app.on`/`ctx.on` default to `false` because a programmatic listener
-   * observes an element, it doesn't take control of it. Those callers can opt in
-   * with the `prevent` modifier.
+   * interaction. `app.on`/`ctx.on` and `rz-wake` default to `false` — a programmatic
+   * listener observes an element rather than taking control of it, and a wake gate
+   * only watches for the moment to activate. Those callers can opt in with the
+   * `prevent` modifier.
    */
   suppressNavigation?: boolean;
 }
@@ -206,7 +207,8 @@ export function createBoundOn(
  * also cancels any pending timed calls.
  *
  * Native navigation is suppressed for form submits and anchor clicks unless the
- * caller opts out with `suppressNavigation: false`, which `app.on`/`ctx.on` do.
+ * caller opts out with `suppressNavigation: false`, which `app.on`/`ctx.on` and
+ * `attachWakeStrategies` do.
  *
  * @returns Cleanup function, or `null` if the trigger has no teardown.
  */
@@ -331,7 +333,14 @@ export function attachWakeStrategies(
       satisfy();
     };
 
-    const cleanup = dispatchTrigger(trigger, { el, action, app });
+    // A wake gate observes the element to decide when to activate; it doesn't take
+    // ownership of it, so a `submit` or `click` gate must not swallow the navigation.
+    const cleanup = dispatchTrigger(trigger, {
+      el,
+      action,
+      app,
+      suppressNavigation: false,
+    });
     if (cleanup) {
       cleanups.push(cleanup);
     }

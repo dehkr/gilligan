@@ -21,7 +21,11 @@ const modifierKeyFlags = new Map<string, (typeof SYS_MODIFIER_FLAGS)[number]>([
   ['meta', 'metaKey'],
 ]);
 
-/** Normalizes the `key` option into lowercased `KeyboardEvent.key` values. */
+/**
+ * Normalizes the `key` option into lowercased `KeyboardEvent.key` values. The
+ * parser already lowercases what it parses; this covers the programmatic surface,
+ * where keys keep their real casing (`{ key: 'ArrowUp' }`).
+ */
 function expectedKeys(key: TriggerOptions['key']): string[] {
   if (key === undefined) return [];
   return (Array.isArray(key) ? key : [key]).map((k) => k.toLowerCase());
@@ -72,6 +76,8 @@ export function applyModifiers(e: Event, el: Element, options: TriggerOptions): 
     return false;
   }
 
+  // The instance check isn't redundant: `on()` casts its target, so `el` is a
+  // `Window` for `on(window, 'click', fn, { outside: true })`.
   if (options.outside && el instanceof Element) {
     if (el.contains(e.target as Node)) {
       return false;
