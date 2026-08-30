@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `interval|30s` -> `interval-[30s]`
   - `media|(min-width: 640px)` -> `media-[(min-width: 640px)]`
 - **Breaking:** Replace `wait` and `query` on `TriggerOptions` with a single `arg`: `app.on('timeout', fn, { wait: '5s' })` becomes `app.on('timeout', fn, { arg: '5s' })`.
+- Move `edit` into the shared trigger-source registry, making it available to every trigger-bearing directive and to `app.on`/`ctx.on`. It names its store with an argument: `data-rz-on="edit-[@cart]|debounce: recalc"`. `rz-push`/`rz-pull` and declarative stores already supply a store name, so the argument is optional in those cases. E.g.:
+  - `data-rz-push="edit|debounce: @cart"`
+  - `<script data-rz-store="cart" data-rz-resource="/cart" data-rz-push="edit|debounce">`
 
 ### Removed
 

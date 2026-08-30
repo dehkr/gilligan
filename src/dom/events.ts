@@ -1,5 +1,8 @@
 import { getApp, type RouseApp } from '../core/app';
+import { STORE_PREFIX } from '../core/constants';
 import { warn } from '../core/diagnostics';
+import { parseStoreRef } from '../core/parser';
+import { getPathRoot } from '../core/path';
 import { applyTiming, parseTime } from '../core/timing';
 import type {
   ActionFn,
@@ -344,7 +347,6 @@ export function attachWakeStrategies(
 
 /**
  * Universal trigger sources available to directives and `app.on`/`ctx.on`.
- * Store-specific sources (`edit`) stay inline in `rz-push`.
  */
 export const triggerSources: Record<string, TriggerSourceHandler> = {
   /** Fires when the RouseApp instance is fully initialized. */
@@ -453,6 +455,43 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     // Safari fallback
     const id = window.setTimeout(action, 1);
     return () => window.clearTimeout(id);
+  },
+
+  /**
+   * Fires when a store's data is edited. Framework writes are excluded; user
+   * writes in one tick coalesce into a single notification.
+   */
+  edit: ({ el, app, options, action }) => {
+    const inst = app || getApp(el);
+    if (!inst) {
+      return null;
+    }
+
+    const ref = options.arg;
+    if (!ref || !ref.startsWith(STORE_PREFIX)) {
+      __DEV__ &&
+        warn(
+          `The 'edit' trigger requires a store argument, e.g. edit-[@cart.items].`,
+          el,
+        );
+      return null;
+    }
+
+    const target = parseStoreRef(ref);
+    if (!target) {
+      return null;
+    }
+
+    const rootKey = getPathRoot(target.nestedPath);
+
+    // Filter here, before the timed action. `debounce` forwards only the last
+    // batch's roots, so filtering downstream would drop a real edit whenever a
+    // different root was touched later in the same window.
+    return inst.stores.onEdit(target.source, (roots) => {
+      if (!rootKey || roots.has(rootKey)) {
+        action();
+      }
+    });
   },
 };
 

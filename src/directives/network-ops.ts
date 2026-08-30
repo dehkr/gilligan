@@ -1,17 +1,16 @@
 import type { RouseApp } from '../core/app';
 import { directiveSelector, getDirectiveValue, hasDirective } from '../core/attributes';
+import { STORE_PREFIX } from '../core/constants';
 import { warn } from '../core/diagnostics';
 import { parseFetchSubject, parseTriggerSubjectPairs } from '../core/parser';
 import { getPathRoot } from '../core/path';
 import { resolveTarget } from '../core/store';
-import { applyTiming } from '../core/timing';
 import { dispatchTrigger, isNativeNavigation } from '../dom/events';
 import { runFetch } from '../net/fetch-engine';
 import type {
   DirectiveSlug,
   FetchRequest,
   StandaloneDirective,
-  TriggerDef,
   TriggerSubjectPair,
   VoidFn,
 } from '../types';
@@ -189,17 +188,37 @@ function bindStorePairs(
     if (!resolved) continue;
 
     const { storeName, nestedPath } = resolved;
-    const fire = () => triggerStoreSync(op, el, app, storeName, nestedPath);
+    const isEdit = trigger.event === 'edit';
+    const rootKey = getPathRoot(nestedPath);
 
-    if (op === 'push' && trigger.event === 'edit') {
-      cleanups.push(
-        bindStoreEditTrigger(app, storeName, trigger.options, fire, nestedPath),
-      );
-      continue;
+    // The trigger resolves its own store, so hand it the one the subject named
+    const def =
+      isEdit && !trigger.options.arg
+        ? {
+            ...trigger,
+            options: {
+              ...trigger.options,
+              arg: `${STORE_PREFIX}${storeName}${nestedPath ? `.${nestedPath}` : ''}`,
+            },
+          }
+        : trigger;
+
+    const sync = () => triggerStoreSync(op, el, app, storeName, nestedPath);
+
+    // A debounced edit can settle after the value was pushed, reset, or retyped
+    // back to the baseline, so the check runs when the timer fires, not when armed.
+    const fire = isEdit
+      ? () => {
+          if (app.stores.isDirty(storeName, rootKey)) {
+            sync();
+          }
+        }
+      : sync;
+
+    const cleanup = dispatchTrigger(def, { el, app, action: fire });
+    if (cleanup) {
+      cleanups.push(cleanup);
     }
-
-    const cleanup = dispatchTrigger(trigger, { el, app, action: fire });
-    if (cleanup) cleanups.push(cleanup);
   }
 
   return cleanups;
@@ -235,44 +254,6 @@ function triggerStoreSync(
   if (status.loading) return;
 
   app.stores[op](storeName, { nestedPath, triggerEl });
-}
-
-/**
- * Fires a push when the target store is edited (the `edit` trigger).
- */
-function bindStoreEditTrigger(
-  app: RouseApp,
-  storeName: string,
-  options: TriggerDef['options'],
-  fire: VoidFn,
-  nestedPath: string,
-): VoidFn {
-  const rootKey = getPathRoot(nestedPath);
-
-  // Re-checked when the timer fires, not when it was armed: the value may have
-  // been pushed, reset, or retyped back to the baseline in between.
-  const guardedFire = () => {
-    if (app.stores.isDirty(storeName, rootKey)) {
-      fire();
-    }
-  };
-
-  const timedFire = applyTiming(guardedFire, options);
-
-  // Filter here outside the timing wrapper. `debounce` forwards only the last
-  // batch's roots, so filtering inside would drop an edit to the target root
-  // whenever a different root was edited later in the same window.
-  const handleEdit = (roots: ReadonlySet<string>) => {
-    if (rootKey && !roots.has(rootKey)) return;
-    timedFire();
-  };
-
-  const stopListener = app.stores.onEdit(storeName, handleEdit);
-
-  return () => {
-    timedFire.cancel();
-    stopListener();
-  };
 }
 
 export const rzFetch = defineNetworkOpDirective('fetch', bindFetchPairs);
