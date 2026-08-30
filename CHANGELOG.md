@@ -9,8 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support punctuation in the `key` modifier, now that the argument is bracket-delimited: `key-[;]`, `key-[.]`, `key-[/]`, `key-[,]`. `[`, `(`, `{`, `"`, and `'` remain unaddressable.
+- Support punctuation in the `key` modifier, now that the argument is bracket-delimited: `key-[;]`, `key-[.]`, `key-[/]`, `key-[,]`.
+  - `[`, `(`, `{`, `"`, and `'` remain unaddressable.
 - Accept a full media query list, since the query is no longer delimited by its own parentheses: `media-[screen and (max-width: 500px), print]`.
+- Support an optional threshold (number from 0 to 1) on `intersect`; e.g. `intersect-[0.5]`.
 
 ### Changed
 

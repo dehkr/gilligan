@@ -406,14 +406,27 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   },
 
   /** Element intersection with the viewport. */
-  intersect: ({ el, action }) => {
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        action();
-        break;
-      }
-    });
+  intersect: ({ el, options, action }) => {
+    const arg = options.arg;
+    let threshold = arg === undefined ? 0 : Number.parseFloat(arg);
+
+    // A value outside 0–1 makes the observer constructor throw
+    if (!(threshold >= 0 && threshold <= 1)) {
+      __DEV__ &&
+        warn(`Invalid intersect threshold '${arg}'. Use a number from 0 to 1.`, el);
+      threshold = 0;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting || entry.intersectionRatio < threshold) continue;
+          action();
+          break;
+        }
+      },
+      { threshold },
+    );
 
     observer.observe(el);
     return () => observer.disconnect();
