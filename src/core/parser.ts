@@ -12,7 +12,6 @@ import {
   KEY_BLOCKLIST,
 } from './constants';
 import { warn } from './diagnostics';
-import { isTimeModifier } from './timing';
 
 const closers = { ')': '(', '}': '{', ']': '[' } as const;
 const openers = new Set<string>(Object.values(closers));
@@ -143,10 +142,10 @@ export function parseTriggerSubjectPairs(
 }
 
 /**
- * Splits a `name-[attribute]` token into its name and trimmed attribute, or
- * `null` when the token carries no attribute.
+ * Splits a `name-[argument]` token into its name and trimmed argument, or
+ * `null` when the token carries no argument.
  */
-function parseAttrToken(token: string): [name: string, attr: string] | null {
+function parseArgToken(token: string): [name: string, arg: string] | null {
   if (!token.endsWith(']')) return null;
 
   const open = token.indexOf('-[');
@@ -155,30 +154,29 @@ function parseAttrToken(token: string): [name: string, attr: string] | null {
 
 /**
  * Resolves dot-separated modifier tokens into `TriggerOptions`. A bare token is a
- * flag (`once`) or a listener target (`window`); a `name-[attribute]` token binds
- * a value to that modifier (`debounce-[300ms]`, `key-[enter]`); a bare time or
- * `(query)` value is an argument to the event (`interval|30s`).
+ * flag (`once`) or a listener target (`window`); a `name-[argument]` token binds
+ * a value to that modifier (`debounce-[300ms]`, `key-[enter]`).
  */
 function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
   const options: TriggerOptions = {};
   const keys: string[] = [];
 
   for (const token of tokens) {
-    const attrToken = parseAttrToken(token);
+    const argToken = parseArgToken(token);
 
-    if (attrToken) {
-      const [name, attr] = attrToken;
+    if (argToken) {
+      const [name, arg] = argToken;
 
-      if (!attr) {
-        __DEV__ && warn(`Empty attribute on modifier '${name}' in trigger '${trigger}'.`);
+      if (!arg) {
+        __DEV__ && warn(`Empty argument on modifier '${name}' in trigger '${trigger}'.`);
         continue;
       }
 
       if (name === 'key') {
-        const key = attr.toLowerCase();
+        const key = arg.toLowerCase();
         keys.push(key === 'space' ? ' ' : key);
       } else if (name === 'debounce' || name === 'throttle') {
-        options[name] = attr;
+        options[name] = arg;
       } else {
         __DEV__ && warn(`Unknown modifier '${name}' in trigger '${trigger}'.`);
       }
@@ -192,10 +190,6 @@ function normalizeModifiers(tokens: string[], trigger: string): TriggerOptions {
       options.listenOn = token;
     } else if (token === 'debounce' || token === 'throttle') {
       options[token] = true;
-    } else if (isTimeModifier(token)) {
-      options.wait = token;
-    } else if (token.startsWith('(') && token.endsWith(')')) {
-      options.query = token;
     } else {
       __DEV__ && warn(`Unknown modifier '${token}' in trigger '${trigger}'.`);
     }
@@ -227,7 +221,7 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
 
   raw = stripQuotes(raw);
 
-  // A comma inside a bracketed attribute is data, not a separator: `key-[,]`
+  // A comma inside a bracketed argument is data, not a separator: `key-[,]`
   if (splitOnSafeDelimiter(raw, ',').length > 1) {
     __DEV__ && warn(`Separate multi-trigger values by spaces, not commas: '${raw}'.`);
     return [];
@@ -258,7 +252,15 @@ export function parseTriggers(value: string | null | undefined): TriggerDef[] {
       ? splitOnSafeDelimiter(modifierGroup, '.').filter(Boolean)
       : [];
 
-    parsed.push({ event, options: normalizeModifiers(modifiers, trigger) });
+    // A trigger argument (`timeout-[5s]`) rides in `options.arg`; each source reads it.
+    const argToken = parseArgToken(event);
+    const options = normalizeModifiers(modifiers, trigger);
+
+    if (argToken) {
+      options.arg = argToken[1];
+    }
+
+    parsed.push({ event: argToken ? argToken[0] : event, options });
   }
 
   return parsed;

@@ -376,10 +376,8 @@ export interface TriggerOptions {
   /** Run on the trailing edge of the timing window. */
   trailing?: boolean;
 
-  /** Delay or period for the `timeout` and `interval` trigger sources. */
-  wait?: number | string;
-  /** Media query for the `media` trigger source. */
-  query?: string;
+  /** The trigger's bracketed argument (`timeout-[5s]`, `media-[(min-width: 640px)]`). */
+  arg?: string;
 }
 
 /** Parsed trigger event with its resolved options. */

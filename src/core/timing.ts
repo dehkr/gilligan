@@ -191,13 +191,6 @@ export function applyTiming<T extends AnyFn>(fn: T, options: TriggerOptions): Ti
 }
 
 /**
- * Checks if a string or number matches the supported time formats.
- */
-export function isTimeModifier(val: unknown): boolean {
-  return TIME_REGEX.test(String(val).trim().toLowerCase());
-}
-
-/**
  * Converts a string with time suffixes (ms, s, m) or a raw number into milliseconds.
  * Defaults to milliseconds if no suffix is provided.
  *

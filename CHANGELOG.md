@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Support punctuation in the `key` modifier, now that the argument is bracket-delimited: `key-[;]`, `key-[.]`, `key-[/]`, `key-[,]`. `[`, `(`, `{`, `"`, and `'` remain unaddressable.
+- Accept a full media query list, since the query is no longer delimited by its own parentheses: `media-[screen and (max-width: 500px), print]`.
+
+### Changed
+
+- **Breaking:** Take trigger and modifier arguments in brackets. A modifier that binds a value, and a trigger source that requires one (or accepts an optional one), use the same `name-[argument]` format:
+  - `debounce-300ms` -> `debounce-[300ms]`
+  - `throttle-1s` -> `throttle-[1s]`
+  - `key-enter` -> `key-[enter]`
+  - `timeout|5s` -> `timeout-[5s]`
+  - `interval|30s` -> `interval-[30s]`
+  - `media|(min-width: 640px)` -> `media-[(min-width: 640px)]`
+- **Breaking:** Replace `wait` and `query` on `TriggerOptions` with a single `arg`: `app.on('timeout', fn, { wait: '5s' })` becomes `app.on('timeout', fn, { arg: '5s' })`.
+
 ### Removed
 
 - **Breaking:** Remove trigger sources that wrapped native events on `window` or `document`: `page-loaded`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.

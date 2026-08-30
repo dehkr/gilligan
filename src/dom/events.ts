@@ -142,7 +142,9 @@ export function on(
 
   // Bail before attaching on an already-aborted signal. Otherwise the
   // listeners attach and the abort event never fires to remove them.
-  if (signal?.aborted) return () => {};
+  if (signal?.aborted) {
+    return () => {};
+  }
 
   // An object with a `handleEvent` method can be used as the listener, mirroring
   // `addEventListener`. Resolved per call so it can be swapped after binding.
@@ -257,7 +259,9 @@ function attachTriggerSource(
   handler: TriggerSourceHandler,
   ctx: TriggerContext,
 ): VoidFn | null {
-  if (!ctx.options.once) return handler(ctx);
+  if (!ctx.options.once) {
+    return handler(ctx);
+  }
 
   const action = ctx.action;
   let cleanup: VoidFn | null = null;
@@ -271,7 +275,9 @@ function attachTriggerSource(
   };
 
   cleanup = handler(ctx);
-  if (fired) cleanup?.();
+  if (fired) {
+    cleanup?.();
+  }
 
   return cleanup;
 }
@@ -344,7 +350,9 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
   /** Fires when the RouseApp instance is fully initialized. */
   ready: ({ el, app, action }) => {
     const inst = app || getApp(el);
-    if (!inst) return null;
+    if (!inst) {
+      return null;
+    }
     if (inst.isReady) {
       action();
       return null;
@@ -364,18 +372,33 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
 
   /** Listens to a media query. */
   media: ({ el, options, action }) => {
-    const query = options.query;
+    const query = options.arg;
 
     if (!query) {
-      __DEV__ && warn(`The 'media' event requires a query modifier in parentheses.`, el);
+      __DEV__ &&
+        warn(
+          `The 'media' trigger requires a query argument, e.g. media-[(min-width: 640px)].`,
+          el,
+        );
       return null;
     }
 
     const mql = window.matchMedia(query);
-    if (mql.matches) action();
+
+    // An invalid query doesn't throw; it serializes to 'not all' and never matches
+    __DEV__ &&
+      mql.media === 'not all' &&
+      query !== 'not all' &&
+      warn(`Invalid media query '${query}'. It will never match.`, el);
+
+    if (mql.matches) {
+      action();
+    }
 
     const changeHandler = (e: MediaQueryListEvent) => {
-      if (e.matches) action();
+      if (e.matches) {
+        action();
+      }
     };
 
     mql.addEventListener('change', changeHandler);
@@ -424,15 +447,17 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
  * Helper for the `timeout` and `interval` trigger sources.
  */
 function attachTimingSource(type: 'timeout' | 'interval', ctx: TriggerContext) {
-  const { wait } = ctx.options;
+  const { arg } = ctx.options;
 
-  if (wait === undefined) {
-    __DEV__ && warn(`Missing timing modifier for '${type}'.`, ctx.el);
+  if (!arg) {
+    __DEV__ && warn(`Missing time argument for '${type}', e.g. ${type}-[5s].`, ctx.el);
     return null;
   }
 
-  const ms = parseTime(wait);
-  if (ms <= 0) return null;
+  const ms = parseTime(arg);
+  if (ms <= 0) {
+    return null;
+  }
 
   const setup = type === 'timeout' ? window.setTimeout : window.setInterval;
   const clear = type === 'timeout' ? window.clearTimeout : window.clearInterval;
