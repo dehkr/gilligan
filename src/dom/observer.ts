@@ -1,6 +1,5 @@
-import { getApp, type RouseApp } from '../core/app';
+import { getApp, NETWORK_DIRECTIVES, type RouseApp } from '../core/app';
 import { hasDirective, queryTargets } from '../core/attributes';
-import { NETWORK_DIRECTIVES } from '../directives/network-ops';
 import { SCOPE_SELECTOR } from '../directives/rz-scope';
 import { rzStore } from '../directives/rz-store';
 import {

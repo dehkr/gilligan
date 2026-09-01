@@ -1,16 +1,18 @@
 import {
   rzAttr,
   rzClass,
+  rzFetch,
   rzHtml,
   rzModel,
   rzOn,
   rzProp,
+  rzPull,
+  rzPush,
   rzRender,
   rzStore,
   rzStyle,
   rzText,
 } from '../directives';
-import { NETWORK_DIRECTIVES } from '../directives/network-ops';
 import { SCOPE_SELECTOR } from '../directives/rz-scope';
 import {
   mountGlobalBinding,
@@ -65,6 +67,7 @@ interface ResolvedConfig {
   wake: string;
 }
 
+export const NETWORK_DIRECTIVES = [rzFetch, rzPush, rzPull];
 const appInstances = new WeakMap<HTMLElement, RouseApp>();
 
 let bannerLogged = false;
