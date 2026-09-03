@@ -2,6 +2,28 @@ import { fail } from '../core/diagnostics';
 import type { FetchRequest } from '../types';
 
 /**
+ * Resolves a request URL against `baseUrl`, falling back to the document base.
+ * An absolute URL is returned unchanged.
+ */
+export function resolveUrl(url: string, baseUrl: string): URL {
+  try {
+    if (isAbsoluteUrl(url)) {
+      return new URL(url);
+    }
+
+    const base = baseUrl
+      ? baseUrl.endsWith('/')
+        ? baseUrl
+        : `${baseUrl}/`
+      : document.baseURI;
+
+    return new URL(url, base);
+  } catch (err) {
+    fail(`Failed to construct URL: '${url}'.`, TypeError, { cause: err });
+  }
+}
+
+/**
  * Prepares the URL, headers, and body for a network request.
  */
 export function preparePayload(url: string, options: FetchRequest, baseUrl: string) {
@@ -12,22 +34,7 @@ export function preparePayload(url: string, options: FetchRequest, baseUrl: stri
     fail(`Cannot specify both 'body' and 'form'.`, TypeError);
   }
 
-  let urlObj: URL;
-
-  try {
-    if (isAbsoluteUrl(url)) {
-      urlObj = new URL(url);
-    } else {
-      const base = baseUrl
-        ? baseUrl.endsWith('/')
-          ? baseUrl
-          : `${baseUrl}/`
-        : document.baseURI;
-      urlObj = new URL(url, base);
-    }
-  } catch (err) {
-    fail(`Failed to construct URL: '${url}'.`, TypeError, { cause: err });
-  }
+  const urlObj = resolveUrl(url, baseUrl);
 
   // Append programmatic params
   if (params) {

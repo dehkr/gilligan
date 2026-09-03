@@ -9,6 +9,7 @@ import {
   rzPull,
   rzPush,
   rzRender,
+  rzSse,
   rzStore,
   rzStyle,
   rzText,
@@ -67,7 +68,7 @@ interface ResolvedConfig {
   wake: string;
 }
 
-export const NETWORK_DIRECTIVES = [rzFetch, rzPush, rzPull];
+export const NETWORK_DIRECTIVES = [rzFetch, rzPush, rzPull, rzSse];
 const appInstances = new WeakMap<HTMLElement, RouseApp>();
 
 let bannerLogged = false;

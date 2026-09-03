@@ -1,5 +1,6 @@
 export { rzAttr } from './rz-attr';
 export { rzClass } from './rz-class';
+export { rzClose } from './rz-close';
 export { rzFetch } from './rz-fetch';
 export { rzFetchInit } from './rz-fetch-init';
 export { rzHeaders } from './rz-headers';
@@ -14,6 +15,7 @@ export { rzPush } from './rz-push';
 export { rzRender } from './rz-render';
 export { rzResource } from './rz-resource';
 export { rzScope } from './rz-scope';
+export { rzSse } from './rz-sse';
 export { rzStore } from './rz-store';
 export { rzStyle } from './rz-style';
 export { rzTarget } from './rz-target';

@@ -10,14 +10,15 @@ import type {
 } from '../types';
 
 /**
- * Factory for the network directives (rz-fetch, rz-push, rz-pull), which share
- * the `[trigger]: [subject]` grammar. Owns the per-element cleanup registry and
- * the shared initialize/teardown scaffolding.
+ * Factory for the directives sharing the `[trigger]: [subject]` grammar: rz-fetch,
+ * rz-push, rz-pull, and rz-sse. Owns the per-element cleanup registry and the
+ * shared initialize/teardown scaffolding. rz-sse shares the grammar and the
+ * scaffolding without being a network op — it never reaches `request()`.
  *
  * @param bindPairs - Wires the parsed pairs for one element and returns their cleanups.
  */
 export function defineNetworkOpDirective(
-  slug: Extract<DirectiveSlug, 'fetch' | 'push' | 'pull'>,
+  slug: Extract<DirectiveSlug, 'fetch' | 'push' | 'pull' | 'sse'>,
   bindPairs: (el: Element, app: RouseApp, pairs: TriggerSubjectPair[]) => VoidFn[],
 ): StandaloneDirective {
   const elementCleanups = new WeakMap<Element, VoidFn[]>();

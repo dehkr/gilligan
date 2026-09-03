@@ -15,6 +15,7 @@ declare const CLEANUP: unique symbol;
 export type DirectiveSlug =
   | 'attr'
   | 'class'
+  | 'close'
   | 'fetch'
   | 'fetch-init'
   | 'headers'
@@ -29,6 +30,7 @@ export type DirectiveSlug =
   | 'render'
   | 'resource'
   | 'scope'
+  | 'sse'
   | 'store'
   | 'style'
   | 'target'
@@ -119,6 +121,72 @@ export interface PushPullConfigDetail {
  */
 export type PushPullLifecycleDetail = Omit<PushPullConfigDetail, 'url' | 'method'>;
 
+/** A stream's resolved connection config, carried on every `rz:sse:*` detail. */
+export interface SseConnectionConfig {
+  /** The stream endpoint. */
+  url: string;
+  /** Whether the connection sends credentials cross-origin. */
+  withCredentials: boolean;
+  /** The element that declared the stream. Unset for a trigger-less `app.sse`. */
+  triggerEl?: Element;
+}
+
+/** Why a stream ended. */
+export type SseCloseReason =
+  /** The host element left the DOM, or the app was destroyed. */
+  | 'teardown'
+  /** An `rz-close` trigger fired, or the last programmatic holder released. */
+  | 'released'
+  /** A listener prevented `rz:sse:error`, suppressing the reconnect. */
+  | 'canceled'
+  /** The server rejected the connection (non-200 or wrong content type). */
+  | 'failed';
+
+/** Detail for `rz:sse:open`. */
+export interface SseConnectionDetail {
+  /** The stream's connection config. */
+  config: SseConnectionConfig;
+}
+
+/** Detail for `rz:sse:close`. */
+export interface SseCloseDetail extends SseConnectionDetail {
+  /** What ended the stream. */
+  reason: SseCloseReason;
+}
+
+/**
+ * Detail for `rz:sse:config`; cancelable, fires once before the initial attempt.
+ * Listeners can mutate `config` in place; replacing the object has no effect.
+ */
+export interface SseConfigDetail extends SseConnectionDetail {}
+
+/** Detail for `rz:sse:message`. */
+export interface SseMessageDetail<T = unknown> extends SseConnectionDetail {
+  /** The server's event name, or `'message'` for an unnamed event. */
+  event: string;
+  /** The message body, parsed as JSON when it parses to an object or array. */
+  data: T;
+  /** The unparsed `data:` field, as sent. */
+  raw: string;
+  /** The server's `id:` field, or an empty string when absent. */
+  lastEventId: string;
+}
+
+/** Detail for `rz:sse:message:json`: a message whose body parsed to an object or array. */
+export type SseMessageJsonDetail = SseMessageDetail<Record<string, any> | any[]>;
+
+/** Detail for `rz:sse:message:html`: a message whose body is text. */
+export type SseMessageHtmlDetail = SseMessageDetail<string>;
+
+/**
+ * Detail for `rz:sse:error`; cancelable. The connection dropped, and the default
+ * action is the platform's automatic reconnect. `preventDefault()` closes instead.
+ */
+export interface SseErrorDetail extends SseConnectionDetail {
+  /** Consecutive failed attempts, reset to zero on every successful `rz:sse:open`. */
+  attempt: number;
+}
+
 /** Detail for `rz:push`/`rz:pull` `:success` and `:error`: the full response, plus the store name. */
 export interface PushPullResultDetail {
   /** Name of the store being synced. */
@@ -132,7 +200,7 @@ export interface BaseStorePatch {
   /** Name of the store being patched. */
   storeName: string;
   /** Network operation that produced the payload. */
-  operation: 'push' | 'pull' | 'fetch';
+  operation: 'push' | 'pull' | 'fetch' | 'sse';
   /** Dot-path of the targeted slice, when only part of the store was patched. */
   nestedPath?: string;
 }
@@ -251,6 +319,20 @@ export interface LifecycleEventMap {
   'rz:pull:error': PushPullResultDetail;
   /** Fires when the pull settles, after success/error/abort. */
   'rz:pull:end': PushPullLifecycleDetail;
+  /** Fires once before the initial connection attempt; cancelable. Listeners can mutate `config`. */
+  'rz:sse:config': SseConfigDetail;
+  /** Fires when the stream connects, and again after every successful reconnect. */
+  'rz:sse:open': SseConnectionDetail;
+  /** Fires for every message the server sends, named or unnamed. */
+  'rz:sse:message': SseMessageDetail;
+  /** Fires after `rz:sse:message` when the body parsed to an object or array. */
+  'rz:sse:message:json': SseMessageJsonDetail;
+  /** Fires after `rz:sse:message` when the body is text. */
+  'rz:sse:message:html': SseMessageHtmlDetail;
+  /** Fires when the connection drops; cancelable. Preventing it suppresses the reconnect. */
+  'rz:sse:error': SseErrorDetail;
+  /** Fires when the stream has ended and will not reopen on its own. */
+  'rz:sse:close': SseCloseDetail;
   /** Fires before a payload is applied to the local store; cancelable, and `payload` is mutable. Check `detail.operation` for what produced it. */
   'rz:store:patch:before': StorePatchBeforeDetail;
   /** Fires after a payload has been applied to the local store. Check `detail.operation` for what produced it. */
@@ -536,6 +618,20 @@ export type RouseFetch = (
   options?: FetchRequest,
 ) => Promise<RouseResponse>;
 
+/** Options for `app.sse` and `ctx.sse`. */
+export interface SseOptions {
+  /** The element the connection binds to and dispatches from. Defaults to the app root. */
+  triggerEl?: Element;
+  /** Sends credentials on cross-origin connections. */
+  withCredentials?: boolean;
+}
+
+/**
+ * The callable stream surface. Opens a connection, or joins one already open at the
+ * same URL. Returns a closer that releases this caller's reference.
+ */
+export type RouseSse = (resource: string, options?: SseOptions) => VoidFn;
+
 /** The enhanced response object returned by `ctx.fetch` and `request()`. */
 export interface RouseResponse<T = any> {
   /** Parsed response body, or `null` on error or empty response. */
@@ -551,6 +647,20 @@ export interface RouseResponse<T = any> {
   /** The resolved request config that produced this response. */
   config: FetchRequest;
   /** Server-supplied swap target override (`Rouse-Target` header), if present. */
+  targetOverride?: string | null;
+}
+
+/**
+ * The minimum a payload needs to be routed by `rz-target`. `RouseResponse` satisfies
+ * it structurally, so both the fetch and stream paths reach the same routers without
+ * either one adopting the other's detail type.
+ */
+export interface RoutablePayload {
+  /** The payload to place. */
+  data: unknown;
+  /** Carries the element whose `rz-target` names the destination. */
+  config?: { triggerEl?: Element };
+  /** Server-supplied target override. Never set on the stream path. */
   targetOverride?: string | null;
 }
 
