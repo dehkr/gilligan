@@ -93,6 +93,9 @@ export function openStream(
   if (!entry.source && (!entry.closed || revive)) {
     entry.attempt = 0;
     connect(entry);
+  } else if (entry.source?.readyState === EventSource.OPEN) {
+    // A ref joining a live stream missed the connect dispatch
+    dispatch(el, 'rz:sse:open', { config });
   }
 
   return (reason = 'released') => release(key, ref, reason);
@@ -193,12 +196,17 @@ function release(key: string, ref: StreamRef, reason: SseCloseReason) {
   const entry = entries.get(key);
   if (!entry?.refs.delete(ref)) return;
 
+  // `finalize` already announced a permanent close to every holder
+  const announced = entry.closed;
+
   if (entry.refs.size === 0) {
     entry.source?.close();
     entries.delete(key);
   }
 
-  dispatch(ref.el, 'rz:sse:close', { config: ref.config, reason });
+  if (!announced) {
+    dispatch(ref.el, 'rz:sse:close', { config: ref.config, reason });
+  }
 }
 
 /**

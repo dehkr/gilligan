@@ -7,7 +7,7 @@ import type { ConfigDirective, TriggerDef } from '../types';
  * `rz-wake`, these compose with OR: the first to fire closes.
  *
  * Read on demand by `rz-sse`, so nothing scans for it and an element carrying
- * it alone does nothing. `app.start()` warns about that case in dev.
+ * it alone does nothing.
  */
 function getConfig(el: Element): TriggerDef[] {
   return parseTriggers(getDirectiveValue(el, 'close'));
