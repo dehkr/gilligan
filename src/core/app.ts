@@ -27,6 +27,7 @@ import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
 import { initDomRouter } from '../dom/swapper';
 import { runFetch } from '../net/fetch-engine';
+import { openBoundStream } from '../net/sse-engine';
 import type {
   BoundOn,
   ErrorInterceptor,
@@ -35,6 +36,7 @@ import type {
   RequestInterceptor,
   ResponseInterceptor,
   RouseFetch,
+  RouseSse,
   ScopeSetup,
   VoidFn,
 } from '../types';
@@ -120,38 +122,27 @@ export class RouseApp {
    * default headers, and credentials all apply, and a relative URL is resolved against
    * the configured `baseUrl`.
    *
-   * Always resolves to a `RouseResponse`, on failure as well as success, so check `error`
-   * instead of catching. The body arrives on `data`, parsed by content type: an object or
-   * array for JSON, a string for HTML, text, and XML, and a `Blob` for anything else.
-   *
-   * A response isn't placed in the page unless something names a destination. Pass
-   * `triggerEl` to attribute the request to an element, which applies that element's
-   * `rz-request` config, fires the `rz:fetch:*` events from it, and routes the response
-   * through its `rz-target`: HTML into the DOM, JSON into a store. A server `Rouse-Target`
-   * routes either way. Otherwise the response is handled by the caller; the exported `swap`
-   * helper can be used to place HTML manually.
-   *
-   * @param resource - The URL to request, absolute or relative to `baseUrl`.
-   * @param options - Request options such as `method`, `body`, `params`, `headers`, and `abortKey`, plus `triggerEl`.
-   * @returns The response, carrying parsed `data` on success or a populated `error` on failure.
-   *
    * @example
    * const { data, error } = await app.fetch('/api/user');
    */
   public fetch: RouseFetch;
 
   /**
+   * Opens a server-sent events stream, or joins one already open at the same URL.
+   *
+   * @example
+   * const close = app.sse('/api/events', { triggerEl: host });
+   */
+  public sse: RouseSse;
+
+  /**
    * Adds an event listener that is auto-removed when the app is destroyed. Listens
-   * on `app.root` unless an `EventTarget` is passed first. Modifiers, filters, and
-   * timing are passed as options, with an optional `AbortSignal` combined with the
-   * app's own. The programmatic twin of `rz-on`, with the same trigger sources.
-   * Safe to call before `app.start()`.
+   * on `app.root` unless an `EventTarget` is passed first.
    *
    * @returns A teardown closure that removes the listener early.
    *
    * @example
    * app.on('click', onClick, { debounce: 300 });
-   * app.on(document, 'visibilitychange', refetch);
    * app.on(window, ['online', 'offline'], sync);
    */
   public on: BoundOn;
@@ -223,6 +214,10 @@ export class RouseApp {
 
     // A lifecycle-safe listener bound to the app-lifetime signal, auto-removed on `destroy`
     this.on = createBoundOn(this.root, this._abortController.signal, this);
+
+    // Released when the app-lifetime signal aborts, like `app.on` listeners
+    this.sse = (resource, options = {}) =>
+      openBoundStream(this, resource, options, this._abortController.signal);
   }
 
   /**

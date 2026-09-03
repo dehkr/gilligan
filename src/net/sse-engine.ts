@@ -7,6 +7,7 @@ import type {
   SseCloseReason,
   SseConnectionConfig,
   SseOptions,
+  VoidFn,
 } from '../types';
 import { resolveUrl } from './payload';
 
@@ -99,6 +100,38 @@ export function openStream(
   }
 
   return (reason = 'released') => release(key, ref, reason);
+}
+
+/**
+ * Opens a stream whose lifetime is bound to `signal`. Aborting releases the
+ * reference, which is how `app.sse` and `ctx.sse` clean up without the caller
+ * holding on to the closer.
+ */
+export function openBoundStream(
+  app: RouseApp,
+  resource: string,
+  options: SseOptions,
+  signal: AbortSignal,
+): VoidFn {
+  // An already-aborted owner means "don't open", matching `on`
+  if (signal.aborted) {
+    return () => {};
+  }
+
+  const release = openStream(app, resource, options, true);
+  if (!release) {
+    return () => {};
+  }
+
+  // Aborting is the owner going away; the returned closer is the caller choosing to
+  // stop early. The reasons are reported separately so a listener can tell them apart.
+  const onAbort = () => release('teardown');
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  return () => {
+    signal.removeEventListener('abort', onAbort);
+    release('released');
+  };
 }
 
 /**

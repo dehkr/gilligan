@@ -4,6 +4,7 @@ import { fail, warn } from '../core/diagnostics';
 import { dispatch } from '../core/dispatch';
 import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
+import { openBoundStream } from '../net/sse-engine';
 import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
 import { attachWakeStrategies, createBoundOn } from './events';
@@ -126,6 +127,10 @@ function createScope(
     // `signal: undefined`, or `keepalive: true` to finish even if the tab closes.
     fetch: (url, options = {}) =>
       app.fetch(url, { signal: abortCtrl.signal, ...options }),
+    // The signal is a parameter here, not an option, so a caller can't detach the
+    // stream from the scope the way `fetch` above allows. A fetch completes on its
+    // own; a stream never does, so detaching one leaves nothing to close it.
+    sse: (url, options = {}) => openBoundStream(app, url, options, abortCtrl.signal),
     on: createBoundOn(el, abortCtrl.signal, app),
     // Allows for triggering a scan from inside the scope
     scan: (newNode: Element) => binding?.scan(newNode),

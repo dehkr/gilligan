@@ -746,6 +746,8 @@ export type ScopeCtx<
   term: AbortSignal;
   /** Scoped `fetch` surface. Aborts on scope destroy. */
   fetch: RouseFetch;
+  /** Scoped stream surface. Closes on scope destroy. */
+  sse: RouseSse;
   /**
    * Adds an event listener that is auto-removed when the scope is destroyed. Listens
    * on the scope host unless an `EventTarget` is passed first. Modifiers, filters, and
