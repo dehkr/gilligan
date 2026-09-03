@@ -6,9 +6,9 @@ import {
   type SwapMethod,
 } from '../core/constants';
 import { warn } from '../core/diagnostics';
+import { dispatch } from '../core/dispatch';
 import { rzTarget } from '../directives';
 import type { RouseResponse } from '../types';
-import { dispatch } from './events';
 
 /**
  * Listens to the app root for HTML fetch responses and routes the payloads into DOM

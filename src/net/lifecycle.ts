@@ -1,7 +1,7 @@
 import { queryTargets } from '../core/attributes';
 import { warn } from '../core/diagnostics';
+import { dispatch } from '../core/dispatch';
 import { rzIndicator } from '../directives/rz-indicator';
-import { dispatch } from '../dom/events';
 import type {
   FetchConfigDetail,
   PushPullConfigDetail,

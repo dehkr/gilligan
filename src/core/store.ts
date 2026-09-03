@@ -1,4 +1,3 @@
-import { dispatch } from '../dom/events';
 import { type LifecycleHandle, runRequestLifecycle } from '../net/lifecycle';
 import { request } from '../net/request';
 import { reactive, seedPropagation, trackDirty } from '../reactivity/reactive';
@@ -15,6 +14,7 @@ import type { RouseApp } from './app';
 import { getDirectiveValue } from './attributes';
 import { STORE_PREFIX } from './constants';
 import { fail, warn } from './diagnostics';
+import { dispatch } from './dispatch';
 import { parseStoreRef } from './parser';
 import { deleteNestedVal, getNestedVal, getPathRoot, setNestedVal } from './path';
 import {

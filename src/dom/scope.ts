@@ -1,11 +1,12 @@
 import { effectScope } from 'alien-signals';
 import type { RouseApp } from '../core/app';
 import { fail, warn } from '../core/diagnostics';
+import { dispatch } from '../core/dispatch';
 import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
 import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
 import { bindScope } from './binder';
-import { attachWakeStrategies, createBoundOn, dispatch } from './events';
+import { attachWakeStrategies, createBoundOn } from './events';
 
 export const IS_SCOPE: unique symbol = Symbol(__DEV__ ? 'rz.scope' : '');
 

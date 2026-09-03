@@ -1,8 +1,8 @@
 import type { RouseApp } from '../core/app';
 import { err, warn } from '../core/diagnostics';
+import { dispatch } from '../core/dispatch';
 import { createKey } from '../core/keys';
 import { isPlainObject } from '../core/state';
-import { dispatch } from '../dom/events';
 import { extractFieldValues } from '../dom/forms';
 import type { FetchRequest, RouseResponse } from '../types';
 import { type LifecycleHandle, PREVENTED, runRequestLifecycle } from './lifecycle';

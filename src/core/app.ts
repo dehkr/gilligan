@@ -21,7 +21,7 @@ import {
   teardownGlobalBindings,
   walkBoundElements,
 } from '../dom/binder';
-import { createBoundOn, dispatch } from '../dom/events';
+import { createBoundOn } from '../dom/events';
 import { initObserver } from '../dom/observer';
 import { destroyInstance, IS_SCOPE, initScopeElement } from '../dom/scope';
 import { initStoreRouter } from '../dom/store-router';
@@ -40,6 +40,7 @@ import type {
 } from '../types';
 import { queryTargets } from './attributes';
 import { fail, info, warn } from './diagnostics';
+import { dispatch } from './dispatch';
 import { ScopeRegistry } from './scope-registry';
 import { StoreManager, type SyncPolicy } from './store';
 

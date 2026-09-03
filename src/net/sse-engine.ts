@@ -1,7 +1,7 @@
 import type { RouseApp } from '../core/app';
+import { dispatch } from '../core/dispatch';
 import { safeJSONParse } from '../core/parser';
 import { isPlainObject } from '../core/state';
-import { dispatch } from '../dom/events';
 import type {
   LifecycleEventMap,
   SseCloseReason,

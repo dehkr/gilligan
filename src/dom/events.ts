@@ -4,12 +4,13 @@ import { warn } from '../core/diagnostics';
 import { parseStoreRef } from '../core/parser';
 import { getPathRoot } from '../core/path';
 import { applyTiming, parseTime } from '../core/timing';
+import { subscribeNamed } from '../net/sse-engine';
 import type {
   ActionFn,
   BoundOn,
   EventCallback,
-  LifecycleEventMap,
   ListenerOptions,
+  SseMessageDetail,
   TriggerDef,
   TriggerEvent,
   TriggerOptions,
@@ -42,35 +43,6 @@ export function isNativeNavigation(el: Element, e: Event): boolean {
     (e.type === 'submit' && el instanceof HTMLFormElement) ||
     (e.type === 'click' && el instanceof HTMLAnchorElement)
   );
-}
-
-/**
- * Dispatches a custom event from an element.
- *
- * @param options - Allows overriding cancelable/bubbles
- */
-export function dispatch<N extends string>(
-  el: EventTarget,
-  name: N,
-  detail?: N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any,
-  options?: CustomEventInit,
-): CustomEvent<N extends keyof LifecycleEventMap ? LifecycleEventMap[N] : any>;
-
-export function dispatch(
-  el: EventTarget,
-  name: string,
-  detail: any = {},
-  options: CustomEventInit = {},
-): CustomEvent {
-  const event = new CustomEvent(name, {
-    bubbles: true,
-    cancelable: false,
-    ...options,
-    detail,
-  });
-  el.dispatchEvent(event);
-
-  return event;
 }
 
 /**
@@ -452,6 +424,43 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     events.forEach((evt) => el.addEventListener(evt, action, { passive: true }));
 
     return () => events.forEach((evt) => el.removeEventListener(evt, action));
+  },
+
+  /**
+   * Fires on a stream message with the named event: `sse-[cart-updated]`.
+   * Listens at the app root and filters by name.
+   *
+   * Subscribing is what makes the name observable.
+   */
+  sse: ({ el, app, options, action }) => {
+    const name = options.arg;
+
+    if (!name) {
+      __DEV__ &&
+        warn(
+          `The 'sse' trigger requires an event name argument, e.g. sse-[cart-updated].`,
+          el,
+        );
+      return null;
+    }
+
+    const inst = app || getApp(el);
+    if (!inst) {
+      return null;
+    }
+
+    subscribeNamed(name);
+
+    const handler = (e: Event) => {
+      const { detail } = e as CustomEvent<SseMessageDetail>;
+      if (detail.event === name) {
+        action(e);
+      }
+    };
+
+    inst.root.addEventListener('rz:sse:message', handler);
+
+    return () => inst.root.removeEventListener('rz:sse:message', handler);
   },
 
   /** window.requestIdleCallback (one-time execution). */

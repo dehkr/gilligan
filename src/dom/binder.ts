@@ -1,11 +1,11 @@
 import type { RouseApp } from '../core/app';
 import { getDirectiveValue } from '../core/attributes';
 import { err } from '../core/diagnostics';
+import { dispatch } from '../core/dispatch';
 import { parseDirectiveValue } from '../core/parser';
 import { EMPTY_SCOPE } from '../core/resolve';
 import { SCOPE_SELECTOR } from '../directives/rz-scope';
 import type { BoundCleanupFn, BoundDirective, Scope } from '../types';
-import { dispatch } from './events';
 
 /** Registry to track cleanup functions of globally mounted directives. */
 const globalBindings = new WeakMap<Element, BoundCleanupFn[]>();
