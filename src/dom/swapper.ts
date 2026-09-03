@@ -8,12 +8,12 @@ import {
 import { warn } from '../core/diagnostics';
 import { dispatch } from '../core/dispatch';
 import { rzTarget } from '../directives';
-import type { RouseResponse } from '../types';
+import type { RoutablePayload } from '../types';
 
 /**
- * Listens to the app root for HTML fetch responses and routes the payloads into DOM
- * targets named by `rz-target` on the originating element, or a server `Rouse-Target`
- * header.
+ * Listens to the app root for HTML fetch responses and stream messages, and routes
+ * the payloads into DOM targets named by `rz-target` on the originating element, or
+ * a server `Rouse-Target` header.
  *
  * A programmatic fetch doesn't have an element, so it doesn't swap by default. A server-
  * named target can place the payload, or the caller can place it using `swap()`. The
@@ -24,8 +24,8 @@ import type { RouseResponse } from '../types';
  * success-only output.
  */
 export function initDomRouter(app: RouseApp, signal: AbortSignal) {
-  const route = (e: Event) => {
-    const { detail } = e as CustomEvent<RouseResponse>;
+  const route = (e: Event, source: 'fetch' | 'sse') => {
+    const { detail } = e as CustomEvent<RoutablePayload>;
     const { config, data, targetOverride } = detail;
     const triggerEl = config?.triggerEl;
 
@@ -40,14 +40,16 @@ export function initDomRouter(app: RouseApp, signal: AbortSignal) {
 
     for (const { targets, method } of swaps) {
       for (const targetEl of targets) {
-        swap(data, targetEl, method, 'fetch');
+        swap(data, targetEl, method, source);
       }
     }
   };
 
-  ['success', 'error'].forEach((eventType) => {
-    app.root.addEventListener(`rz:fetch:${eventType}:html`, route, { signal });
+  ['rz:fetch:success:html', 'rz:fetch:error:html'].forEach((name) => {
+    app.root.addEventListener(name, (e) => route(e, 'fetch'), { signal });
   });
+
+  app.root.addEventListener('rz:sse:message:html', (e) => route(e, 'sse'), { signal });
 }
 
 /**
@@ -67,7 +69,7 @@ export function swap(
   content: string,
   target: Element,
   method: SwapMethod = 'innerHTML',
-  source: 'fetch' | 'programmatic' = 'programmatic',
+  source: 'fetch' | 'sse' | 'programmatic' = 'programmatic',
 ) {
   const swapMethod = isSwapMethod(method) ? method : DEFAULT_SWAP_METHOD;
   __DEV__ &&

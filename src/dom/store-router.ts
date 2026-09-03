@@ -2,18 +2,18 @@ import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
 import { isPlainObject } from '../core/state';
 import { rzTarget } from '../directives';
-import type { RouseResponse } from '../types';
+import type { RouseResponse, RoutablePayload } from '../types';
 
 /**
- * Listens to the app root for JSON fetch responses and routes the payloads into global
- * stores named by `rz-target` or a server `Rouse-Target` header. Since programmatic fetch
- * doesn't originate from an element, it doesn't route unless the `triggerEl` option is
- * set explicitly. Error responses route only when the server names a target, since
- * `rz-target` is success-only output.
+ * Listens to the app root for JSON fetch responses and stream messages, and routes the
+ * payloads into global stores named by `rz-target` or a server `Rouse-Target` header.
+ * Since programmatic fetch doesn't originate from an element, it doesn't route unless the
+ * `triggerEl` option is set explicitly. Error responses route only when the server names
+ * a target, since `rz-target` is success-only output.
  */
 export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
-  const route = (e: Event) => {
-    const { detail } = e as CustomEvent<RouseResponse>;
+  const route = (e: Event, operation: 'fetch' | 'sse') => {
+    const { detail } = e as CustomEvent<RoutablePayload>;
     const { config, data, targetOverride } = detail;
     const triggerEl = config?.triggerEl;
 
@@ -29,12 +29,17 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
       targetOverride,
     );
 
-    routeToStore(app, stores, data, detail);
+    // Only the fetch listeners are registered with a `RouseResponse` detail
+    const response = operation === 'fetch' ? (detail as RouseResponse) : undefined;
+
+    routeToStore(app, stores, data, operation, response);
   };
 
-  ['success', 'error'].forEach((eventType) => {
-    app.root.addEventListener(`rz:fetch:${eventType}:json`, route, { signal });
+  ['rz:fetch:success:json', 'rz:fetch:error:json'].forEach((name) => {
+    app.root.addEventListener(name, (e) => route(e, 'fetch'), { signal });
   });
+
+  app.root.addEventListener('rz:sse:message:json', (e) => route(e, 'sse'), { signal });
 }
 
 /**
@@ -44,13 +49,15 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
  *
  * @param stores - Store names to deposit into (from `rz-target`'s `@store` targets).
  * @param payload - The parsed JSON body to write into each store.
- * @param response - The response that produced the payload, surfaced on the rz:store:patch detail.
+ * @param operation - What produced the payload, surfaced on the rz:store:patch detail.
+ * @param response - The response that produced it, absent for a stream message.
  */
 function routeToStore(
   app: RouseApp,
   stores: string[],
   payload: any,
-  response: RouseResponse,
+  operation: 'fetch' | 'sse',
+  response?: RouseResponse,
 ) {
   if (stores.length === 0) return;
 
@@ -66,6 +73,6 @@ function routeToStore(
       continue;
     }
 
-    app.stores.deposit(storeName, payload, { response });
+    app.stores.deposit(storeName, payload, { response, operation });
   }
 }

@@ -251,8 +251,8 @@ export interface DomSwapDetail {
   method: SwapMethod;
   /** The HTML string to insert. Mutable by `rz:dom:swap:before` listeners. */
   payload: string;
-  /** Whether the swap originated from a fetch response or a programmatic `swap()` call. */
-  source: 'fetch' | 'programmatic';
+  /** What produced the swap: a fetch response, a stream message, or a programmatic `swap()` call. */
+  source: 'fetch' | 'sse' | 'programmatic';
 }
 
 /** Maps every lifecycle event name to the shape of `event.detail`. */

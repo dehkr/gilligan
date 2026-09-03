@@ -718,15 +718,16 @@ export class StoreManager {
 
   /**
    * Writes a payload into a store as a JSON Merge Patch, the way a fetch response
-   * routed by `data-rz-target="@store"` does. Fires the same events a push or pull
-   * fires, so a listener sees one shape whatever produced the payload.
+   * or a stream message routed by `data-rz-target="@store"` does. Fires the same
+   * events a push or pull fires, so a listener sees one shape whatever produced
+   * the payload.
    *
    * @returns `false` if the store does not exist or a listener canceled the patch.
    */
   deposit(
     storeName: string,
     payload: object,
-    options?: { response?: RouseResponse },
+    options?: { response?: RouseResponse; operation?: 'fetch' | 'sse' },
   ): boolean {
     const entry = this._getStore(storeName);
     if (!entry) {
@@ -735,13 +736,15 @@ export class StoreManager {
 
     const { data } = entry;
     const response = options?.response;
+    const operation = options?.operation ?? 'fetch';
 
     const beforeEvent = this._dispatchPatchEvent(
       entry,
       'rz:store:patch:before',
-      { storeName, operation: 'fetch', data, payload },
+      { storeName, operation, data, payload },
       { cancelable: true },
     );
+
     if (beforeEvent.defaultPrevented) {
       return false;
     }
@@ -753,7 +756,7 @@ export class StoreManager {
 
     this._dispatchPatchEvent(entry, 'rz:store:patch', {
       storeName,
-      operation: 'fetch',
+      operation,
       data,
       payload: applied,
       response,
