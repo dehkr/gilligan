@@ -16,6 +16,7 @@ export type DirectiveSlug =
   | 'attr'
   | 'class'
   | 'close'
+  | 'deposit'
   | 'fetch'
   | 'fetch-init'
   | 'headers'

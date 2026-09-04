@@ -36,7 +36,7 @@ export function initDomRouter(app: RouseApp, signal: AbortSignal) {
     // No originating element means no destination or host for the declarative path
     if (!triggerEl && !targetOverride) return;
 
-    const { swaps } = rzTarget.getConfig(triggerEl ?? app.root, app.root, targetOverride);
+    const swaps = rzTarget.getConfig(triggerEl ?? app.root, app.root, targetOverride);
 
     for (const { targets, method } of swaps) {
       for (const targetEl of targets) {

@@ -1,6 +1,7 @@
 export { rzAttr } from './rz-attr';
 export { rzClass } from './rz-class';
 export { rzClose } from './rz-close';
+export { rzDeposit } from './rz-deposit';
 export { rzFetch } from './rz-fetch';
 export { rzFetchInit } from './rz-fetch-init';
 export { rzHeaders } from './rz-headers';

@@ -51,10 +51,7 @@ function bindSsePairs(el: Element, app: RouseApp, pairs: TriggerSubjectPair[]) {
 
   __DEV__ &&
     shared.length !== pairs.length &&
-    warn(
-      `rz-sse: only '${url}' is opened. One element carries one stream; share a URL across triggers with whitespace (data-rz-sse="wake click: /events").`,
-      el,
-    );
+    warn(`rz-sse: a single element can only carry one stream.`, el);
 
   for (const { trigger } of shared) {
     const cleanup = dispatchTrigger(trigger, {

@@ -5,29 +5,22 @@ import {
   STORE_PREFIX,
   SWAP_METHODS,
   type SwapOperation,
-  type TargetConfig,
 } from '../core/constants';
 import { warn } from '../core/diagnostics';
 import { parseDirectiveValue } from '../core/parser';
 import type { ConfigDirective } from '../types';
 
 /**
- * Resolves an `rz-target` value into its routing targets: DOM `swaps`
- * (selectors resolved to elements, each with its swap method) and `@store`
- * target names.
+ * Resolves an `rz-target` value into DOM swap operations: selectors resolved to
+ * elements, each with its swap method.
  *
- * Returns an object with two arrays: one containing swap operations and a
- * separate one for store targets. Multi-target updates are supported, including
- * combining DOM and store targets. HTML responses ignore store targets, and JSON
- * responses ignore DOM targets.
- *
+ * Store targets moved to `rz-deposit`. Multi-target updates are still supported.
  * An empty value defaults to one swap targeting the host element.
  *
  * - `data-rz-target="afterbegin: #output"`
  * - `data-rz-target="#output"`
  * - `data-rz-target="outerHTML"`
- * - `data-rz-target="@store"`
- * - `data-rz-target="@status, beforeend: #status"`
+ * - `data-rz-target="beforeend: #log, #status"`
  *
  * @param overrideValue - Takes precedence over the element's `rz-target` attribute (e.g. a server `Rouse-Target` header).
  */
@@ -40,28 +33,29 @@ function resolveRouteTargets(
   value: string | null | undefined,
   hostEl: Element,
   appRoot: Element,
-): TargetConfig {
-  const swaps: SwapOperation[] = [];
-  const stores: string[] = [];
+): SwapOperation[] {
   const parsed = value?.trim() ? parseDirectiveValue(value) : [];
 
   if (parsed.length === 0) {
-    swaps.push({ targets: [hostEl], method: DEFAULT_SWAP_METHOD });
-    return { swaps, stores };
+    return [{ targets: [hostEl], method: DEFAULT_SWAP_METHOD }];
   }
 
-  // Each pair is one of four forms: '@store' (on either side), 'method: selector',
-  // a bare method (targets the host element), or a bare selector (default method).
-  // Store targets only collect a name for the JSON router; they never DOM swap.
+  const swaps: SwapOperation[] = [];
+
+  // Three forms: 'method: selector', a bare method (targets the host element),
+  // or a bare selector (default method).
   for (const [key, val] of parsed) {
-    const store = key.startsWith(STORE_PREFIX)
-      ? key
-      : val?.startsWith(STORE_PREFIX)
-        ? val
-        : '';
-    if (store) {
-      stores.push(store.slice(1));
-    } else if (val) {
+    const store = key.startsWith(STORE_PREFIX) ? key : val;
+    if (store?.startsWith(STORE_PREFIX)) {
+      __DEV__ &&
+        warn(
+          `rz-target: '${store}' names a store. Use data-rz-deposit for store targets.`,
+          hostEl,
+        );
+      continue;
+    }
+
+    if (val) {
       const method = isSwapMethod(key) ? key : DEFAULT_SWAP_METHOD;
       __DEV__ &&
         method !== key &&
@@ -80,7 +74,7 @@ function resolveRouteTargets(
     }
   }
 
-  return { swaps, stores };
+  return swaps;
 }
 
 function queryEls(appRoot: Element, selector: string, hostEl: Element): Element[] {
@@ -92,4 +86,6 @@ function queryEls(appRoot: Element, selector: string, hostEl: Element): Element[
   return targets;
 }
 
-export const rzTarget = { getConfig } as const satisfies ConfigDirective<TargetConfig>;
+export const rzTarget = {
+  getConfig,
+} as const satisfies ConfigDirective<SwapOperation[]>;

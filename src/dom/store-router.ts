@@ -1,7 +1,7 @@
 import type { RouseApp } from '../core/app';
 import { warn } from '../core/diagnostics';
 import { isPlainObject } from '../core/state';
-import { rzTarget } from '../directives';
+import { rzDeposit } from '../directives';
 import type { RouseResponse, RoutablePayload } from '../types';
 
 /**
@@ -23,11 +23,7 @@ export function initStoreRouter(app: RouseApp, signal: AbortSignal) {
     // No trigger means nothing declared a destination; the caller gets the data
     if (!triggerEl && !targetOverride) return;
 
-    const { stores } = rzTarget.getConfig(
-      triggerEl ?? app.root,
-      app.root,
-      targetOverride,
-    );
+    const stores = rzDeposit.getConfig(triggerEl ?? app.root, targetOverride);
 
     // Only the fetch listeners are registered with a `RouseResponse` detail
     const response = operation === 'fetch' ? (detail as RouseResponse) : undefined;

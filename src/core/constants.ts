@@ -29,12 +29,6 @@ export interface SwapOperation {
   method: SwapMethod;
 }
 
-/** Resolved `rz-target` value: DOM swap operations plus `@store` target names. */
-export interface TargetConfig {
-  swaps: SwapOperation[];
-  stores: string[];
-}
-
 /** Default method for DOM swaps when explicit value isn't provided. */
 export const DEFAULT_SWAP_METHOD: SwapMethod = 'innerHTML';
 
