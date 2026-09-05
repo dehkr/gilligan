@@ -178,15 +178,21 @@ function onMessage(entry: StreamEntry, event: string, e: MessageEvent) {
   const raw = typeof e.data === 'string' ? e.data : String(e.data);
   const data = parseMessageData(raw);
 
+  // Only unnamed messages should route to `rz-target` or `rz-deposit`. Named
+  // messages are events and can be handled using `sse-[name]` triggers.
+  const routable = event === DEFAULT_EVENT;
+
   for (const ref of entry.refs) {
     const base = { config: ref.config, event, raw, lastEventId: e.lastEventId };
 
     // Routing before the trigger source, so an `sse-[name]` handler observes the
     // DOM already swapped. The sub-event leading its parent is deliberate.
-    if (Array.isArray(data) || isPlainObject(data)) {
-      dispatch(ref.el, 'rz:sse:message:json', { ...base, data });
-    } else {
-      dispatch(ref.el, 'rz:sse:message:html', { ...base, data: raw });
+    if (routable) {
+      if (Array.isArray(data) || isPlainObject(data)) {
+        dispatch(ref.el, 'rz:sse:message:json', { ...base, data });
+      } else {
+        dispatch(ref.el, 'rz:sse:message:html', { ...base, data: raw });
+      }
     }
 
     dispatch(ref.el, 'rz:sse:message', { ...base, data });
