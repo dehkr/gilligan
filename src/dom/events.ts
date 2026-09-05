@@ -129,13 +129,24 @@ export function on(
       ? (callback as ActionFn)
       : (e?: Event) => callback.handleEvent(e as Event);
 
-  const cleanups = (Array.isArray(events) ? events : [events]).flatMap(
-    (entry) =>
+  const cleanups = (Array.isArray(events) ? events : [events]).flatMap((entry) => {
+    const event = entry.trim();
+
+    // Trigger grammar is parsed out of directive values only
+    __DEV__ &&
+      /\||-\[/.test(event) &&
+      warn(
+        `'${event}' looks like Rouse trigger syntax, which isn't parsed in app.on/ctx.on. Pass modifiers and arguments as options instead: app.on('sse', fn, { arg: 'late', once: true }).`,
+        target,
+      );
+
+    return (
       dispatchTrigger(
-        { event: entry.trim(), options: triggerOptions },
+        { event, options: triggerOptions },
         { el: target as Element, app, action, suppressNavigation: false },
-      ) ?? [],
-  );
+      ) ?? []
+    );
+  });
 
   if (signal) {
     signal.addEventListener('abort', () => cleanups.forEach((cleanup) => cleanup()), {
@@ -360,7 +371,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     if (!query) {
       __DEV__ &&
         warn(
-          `The 'media' trigger requires a query argument, e.g. media-[(min-width: 640px)].`,
+          `The 'media' trigger requires a query argument: 'media-[(min-width: 640px)]' in HTML, or { arg: '(min-width: 640px)' } from app.on/ctx.on.`,
           el,
         );
       return null;
@@ -438,7 +449,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     if (!name) {
       __DEV__ &&
         warn(
-          `The 'sse' trigger requires an event name argument, e.g. sse-[cart-updated].`,
+          `The 'sse' trigger requires an event name argument: 'sse-[cart-updated]' in HTML, or { arg: 'cart-updated' } from app.on/ctx.on.`,
           el,
         );
       return null;
@@ -489,7 +500,7 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     if (!ref || !ref.startsWith(STORE_PREFIX)) {
       __DEV__ &&
         warn(
-          `The 'edit' trigger requires a store argument, e.g. edit-[@cart.items].`,
+          `The 'edit' trigger requires a store argument: 'edit-[@cart.items]' in HTML, or { arg: '@cart.items' } from app.on/ctx.on.`,
           el,
         );
       return null;

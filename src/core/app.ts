@@ -330,9 +330,6 @@ export class RouseApp {
    * Triggers a Rouse network request. `options.triggerEl` marks an originating
    * element; without one nothing is read from the DOM and the `rz:fetch:*`
    * events fire from the app root.
-   *
-   * @param url - The URL to fetch.
-   * @param options - Network configuration. `triggerEl` marks an originating element.
    */
   private async _fetch(url: string, options: FetchRequest = {}) {
     return runFetch(this, { ...options, url });
