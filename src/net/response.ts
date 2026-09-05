@@ -37,10 +37,16 @@ export async function normalizeResponse(
       response.status === 204 || response.status === 205 || contentLength === '0';
 
     if (!isEmpty) {
-      if (isJsonType(contentType)) {
+      // Bail on streams to avoid the request getting hung up forever
+      if (contentType.includes('text/event-stream')) {
+        response.body?.cancel();
+        error = {
+          message: 'Cannot read an event stream as a response. Open it with rz-sse.',
+          status: 'PARSE_ERROR',
+        };
+      } else if (isJsonType(contentType)) {
         const text = await response.text();
-        // A malformed body throws a native SyntaxError,
-        // caught below as PARSE_ERROR.
+        // A malformed body throws a native SyntaxError, caught below as PARSE_ERROR
         if (text) {
           data = JSON.parse(text);
         }
