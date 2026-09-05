@@ -18,7 +18,13 @@ import type { ConfigDirective } from '../types';
  */
 function getConfig(el: Element, overrideValue?: string | null): string[] {
   const value = overrideValue || getDirectiveValue(el, 'deposit');
-  if (!value?.trim()) return [];
+
+  // A <script data-rz-store> is its own deposit target, matching how `rz-push`
+  // and `rz-pull` resolve a missing subject.
+  if (!value?.trim()) {
+    const selfName = getDirectiveValue(el, 'store')?.trim();
+    return selfName ? [selfName] : [];
+  }
 
   const stores: string[] = [];
 

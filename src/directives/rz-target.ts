@@ -37,6 +37,13 @@ function resolveRouteTargets(
   const parsed = value?.trim() ? parseDirectiveValue(value) : [];
 
   if (parsed.length === 0) {
+    // Prevent a store script that hosts an rz-sse stream from inserting HTML
+    // payloads by default. It would be inert, but not correct behavior. Doesn't
+    // affect explicit rz-target usage.
+    if (hostEl instanceof HTMLScriptElement) {
+      return [];
+    }
+
     return [{ targets: [hostEl], method: DEFAULT_SWAP_METHOD }];
   }
 
