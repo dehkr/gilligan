@@ -298,7 +298,7 @@ export function parseFetchSubject(subject: string): {
 /**
  * Parses a prefixed data-source path into the source it names, the `::`
  * namespace it addresses (if any), and the nested dot-path into whichever of
- * the two. Shared by `@` store references and `#` script-id references.
+ * the two.
  *
  * @example
  * parseDataSourcePath('@cart.items.total');
@@ -306,9 +306,6 @@ export function parseFetchSubject(subject: string): {
  *
  * parseDataSourcePath('@cart::status.loading');
  * // { source: 'cart', namespace: 'status', nestedPath: 'loading' }
- *
- * parseDataSourcePath('#config.theme');
- * // { source: 'config', namespace: null, nestedPath: 'theme' }
  */
 export function parseDataSourcePath(value: string): {
   source: string;

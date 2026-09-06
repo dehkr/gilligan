@@ -1,7 +1,7 @@
 import { effect } from 'alien-signals';
 import type { RouseApp } from '../core/app';
 import { directiveSelector } from '../core/attributes';
-import { resolveBoundValue } from '../core/injection';
+import { resolveBoundValue } from '../core/invoke';
 import { applyStyles, setStyleProperty, updateStyle } from '../dom/updater';
 import type { BoundCleanupFn, BoundDirective, Scope } from '../types';
 

@@ -2,7 +2,7 @@ import type { RouseApp } from '../core/app';
 import { directiveSelector } from '../core/attributes';
 import { STORE_PREFIX } from '../core/constants';
 import { warn } from '../core/diagnostics';
-import { invokeHandler, splitInjection } from '../core/injection';
+import { invokeHandler } from '../core/invoke';
 import { parseStoreRef, parseTriggers } from '../core/parser';
 import { getNestedVal } from '../core/path';
 import { dispatchTrigger } from '../dom/events';
@@ -24,7 +24,7 @@ function bind(
     return undefined;
   }
 
-  const { key: methodName, rawPayload } = splitInjection(value);
+  const methodName = value.trim();
 
   let method: unknown;
   let context: unknown;
@@ -76,9 +76,7 @@ function bind(
           method as AnyFn,
           context,
           methodName,
-          rawPayload,
           scope,
-          app.stores,
           el,
           e ?? new CustomEvent(trigger.event),
         ),

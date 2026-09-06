@@ -36,10 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** Move store targets out of `rz-target` into the new `rz-deposit` directive.
 - **Breaking:** Replace `wait` and `query` on `TriggerOptions` with a single `arg`:
   - `app.on('timeout', fn, { wait: '5s' })` becomes `app.on('timeout', fn, { arg: '5s' })`.
+- **Breaking:** Drop the params type parameter from `ScopeSetup`, `ScopeCtx`, `HandlerCtx`, and `RenderHandlerCtx`. The first type parameter is now the element type.
 
 ### Removed
 
 - **Breaking:** Remove trigger sources that wrapped native events on `window` or `document`: `page-loaded`, `network-online`, `network-offline`, `page-visible`, and `page-hidden`.
+- **Breaking:** Remove the `{`, `#`, and `@` payload injections, along with `ctx.params`. Handlers and scope setups read data attributes off the element instead.
 
 ### Fixed
 

@@ -690,13 +690,9 @@ export type InterceptorPhase = 'request' | 'response' | 'error';
  * A scope setup function. Receives a `ScopeCtx` and returns a `Scope` object
  * whose properties become the scope's reactive state and methods.
  *
- * @template P - The type of the params object.
  * @template E - The Element type.
  */
-export type ScopeSetup<
-  P extends Record<string, any> = Record<string, any>,
-  E extends Element = HTMLElement,
-> = (ctx: ScopeCtx<P, E>) => Scope;
+export type ScopeSetup<E extends Element = HTMLElement> = (ctx: ScopeCtx<E>) => Scope;
 
 /** Options for `app.on` and `ctx.on`: a trigger's modifiers, plus a caller abort signal. */
 export type ListenerOptions = TriggerOptions & {
@@ -728,15 +724,9 @@ export type BoundOn = {
 /**
  * The context object passed into every scope setup function.
  *
- * @template P - The type of the params object.
  * @template E - The Element type.
  */
-export type ScopeCtx<
-  P extends Record<string, any> = Record<string, any>,
-  E extends Element = HTMLElement,
-> = {
-  /** Scope parameters injected via inline JSON, <script> id reference, or store reference. */
-  params: P;
+export type ScopeCtx<E extends Element = HTMLElement> = {
   /** The `rz-scope` element this scope is mounted on. */
   host: E;
   /** The root element passed to `RouseApp`. */
@@ -765,12 +755,9 @@ export type ScopeCtx<
  * The context passed to handler functions: event handlers, one-way binding
  * formatters, and other scope/store methods.
  *
- * @template P - The type of the params object.
  * @template E - The Element type.
  */
-export type HandlerCtx<P = Record<string, any>, E extends Element = HTMLElement> = {
-  /** Handler parameters injected via inline JSON, <script> id reference, or store reference. */
-  params: P;
+export type HandlerCtx<E extends Element = HTMLElement> = {
   /** The element the directive is bound to. */
   el: E;
   /** The triggering DOM event, or a synthetic `CustomEvent` when the handler runs without one (e.g. a function used to compute a one-way binding value). */
@@ -784,14 +771,12 @@ export type HandlerCtx<P = Record<string, any>, E extends Element = HTMLElement>
  * is typed, and `render` is guaranteed present (non-null).
  *
  * @template Item - The type of the render item.
- * @template P - The type of the params object.
  * @template E - The Element type.
  */
-export type RenderHandlerCtx<
-  Item,
-  P = Record<string, any>,
-  E extends Element = HTMLElement,
-> = Omit<HandlerCtx<P, E>, 'render'> & {
+export type RenderHandlerCtx<Item, E extends Element = HTMLElement> = Omit<
+  HandlerCtx<E>,
+  'render'
+> & {
   /** Current `rz-render` loop context. */
   render: { item: Item; index: number };
 };

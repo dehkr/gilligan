@@ -2,7 +2,6 @@ import { effectScope } from 'alien-signals';
 import type { RouseApp } from '../core/app';
 import { fail, warn } from '../core/diagnostics';
 import { dispatch } from '../core/dispatch';
-import { resolveInjection } from '../core/injection';
 import { rzScope, rzWake } from '../directives';
 import { openBoundStream } from '../net/sse-engine';
 import type { ScopeCtx, ScopeSetup, VoidFn } from '../types';
@@ -19,10 +18,8 @@ const instanceMap = new WeakMap<HTMLElement, ScopeHandle>();
  * setup function from the registry, and mounting the reactive instance.
  */
 export function initScopeElement(el: HTMLElement, app: RouseApp) {
-  const scopeValue = rzScope.getConfig(el);
-  if (scopeValue === null) return;
-
-  const { scopeName, rawPayload } = scopeValue;
+  const scopeName = rzScope.getConfig(el);
+  if (scopeName === null) return;
 
   let setup: ScopeSetup;
 
@@ -39,23 +36,15 @@ export function initScopeElement(el: HTMLElement, app: RouseApp) {
 
   const strategies = rzWake.getConfig(el, app);
 
-  attachWakeStrategies(el, app, strategies, () => {
-    const data = resolveInjection(rawPayload, app.stores) || {};
-    initScopeInstance(el, app, setup, data);
-  });
+  attachWakeStrategies(el, app, strategies, () => initScopeInstance(el, app, setup));
 }
 
 /**
  * Initializes a scope instance on a specific element.
  */
-function initScopeInstance(
-  el: HTMLElement,
-  app: RouseApp,
-  setup: ScopeSetup,
-  params: Record<string, any> = {},
-) {
+function initScopeInstance(el: HTMLElement, app: RouseApp, setup: ScopeSetup) {
   if (instanceMap.has(el)) return;
-  instanceMap.set(el, createScope(el, app, setup, params));
+  instanceMap.set(el, createScope(el, app, setup));
 }
 
 /**
@@ -92,12 +81,7 @@ export function teardownScopeNode(el: HTMLElement, removedNode: Element) {
  * get their own `effectScope`, so bindings tear down before the state they
  * read. Returns an internal handle.
  */
-function createScope(
-  el: HTMLElement,
-  app: RouseApp,
-  setup: ScopeSetup,
-  params: Record<string, any> = {},
-) {
+function createScope(el: HTMLElement, app: RouseApp, setup: ScopeSetup) {
   let instance: any;
   let isDestroyed = false;
   let binding: {
@@ -118,7 +102,6 @@ function createScope(
 
   // Context object passed into the scope setup function
   const context: ScopeCtx = {
-    params,
     host: el,
     appRoot: app.root,
     stores: app.stores,

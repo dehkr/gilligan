@@ -237,7 +237,7 @@ export class RouseApp {
    * // Object shorthand for bulk registration
    * app.scope({ counter, cart });
    */
-  scope<P extends Record<string, any>>(name: string, setup: ScopeSetup<P>): this;
+  scope<E extends Element = HTMLElement>(name: string, setup: ScopeSetup<E>): this;
   scope(scopes: Record<string, ScopeSetup<any>>): this;
   scope(
     nameOrScopes: string | Record<string, ScopeSetup<any>>,
