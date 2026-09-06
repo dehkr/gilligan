@@ -9,24 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Support punctuation in the `key` modifier, now that the argument is bracket-delimited: `key-[;]`, `key-[.]`, `key-[/]`, `key-[,]`.
-  - `[`, `(`, `{`, `"`, and `'` remain unaddressable.
-- Accept a full media query list, since the query is no longer delimited by its own parentheses: `media-[screen and (max-width: 500px), print]`.
-- Support an optional threshold (number from 0 to 1) on `intersect`; e.g. `intersect-[0.5]`.
+- Add server-sent events. `data-rz-sse="[trigger]: [url]"` opens an `EventSource`, sharing the trigger grammar with the network directives. An unnamed message is a payload; a named message is an event.
+- Add the `rz-close` directive to end a stream; accepts one or more space-separated triggers.
+- Add the `sse` trigger source, exposing named messages via bracket syntax: `data-rz-on="sse-[tick]: handler"`, `data-rz-pull="sse-[cart-updated]: @cart"`, `data-rz-wake="sse-[ready]"`, `ctx.on('sse', fn, { arg: 'tick' })`.
+  - `sse-[message]` captures generic messages that don't have event names.
+- Add sse lifecycle events:
+  - `rz:sse:config` (once, cancelable)
+  - `rz:sse:open`
+  - `rz:sse:message` (plus `:json` / `:html` sub-events for unnamed messages)
+  - `rz:sse:error` (cancelable; canceling suppresses the platform's reconnect)
+  - `rz:sse:close` (carrying `teardown` / `released` / `canceled` / `failed`)
+- Add the `rz-deposit` directive for routing JSON payloads to stores; takes one or more space-separated `@store` names.
+- Accept full media queries, since the query is no longer delimited by its own parentheses: `media-[screen and (max-width: 500px)]`.
+- Support an optional threshold on `intersect` (number from 0 to 1): `intersect-[0.5]`.
 
 ### Changed
 
-- **Breaking:** Take trigger and modifier arguments in brackets. A modifier that binds a value, and a trigger source that requires one (or accepts an optional one), use the same `name-[argument]` format:
+- **Breaking:** Take trigger and modifier arguments in brackets, using the same `name-[argument]` format for both:
   - `debounce-300ms` -> `debounce-[300ms]`
   - `throttle-1s` -> `throttle-[1s]`
   - `key-enter` -> `key-[enter]`
   - `timeout|5s` -> `timeout-[5s]`
   - `interval|30s` -> `interval-[30s]`
   - `media|(min-width: 640px)` -> `media-[(min-width: 640px)]`
-- **Breaking:** Replace `wait` and `query` on `TriggerOptions` with a single `arg`: `app.on('timeout', fn, { wait: '5s' })` becomes `app.on('timeout', fn, { arg: '5s' })`.
-- Move `edit` into the shared trigger-source registry, making it available to every trigger-bearing directive and to `app.on`/`ctx.on`. It names its store with an argument: `data-rz-on="edit-[@cart]|debounce: recalc"`. `rz-push`/`rz-pull` and declarative stores already supply a store name, so the argument is optional in those cases. E.g.:
-  - `data-rz-push="edit|debounce: @cart"`
-  - `<script data-rz-store="cart" data-rz-resource="/cart" data-rz-push="edit|debounce">`
+- **Breaking:** Move store targets out of `rz-target` into the new `rz-deposit` directive.
+- **Breaking:** Replace `wait` and `query` on `TriggerOptions` with a single `arg`:
+  - `app.on('timeout', fn, { wait: '5s' })` becomes `app.on('timeout', fn, { arg: '5s' })`.
 
 ### Removed
 
@@ -34,7 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Stop `rz-wake` from suppressing native navigation. A scope element that is a form or an anchor no longer swallows the `submit` or `click` that wakes it.
+- Reject a `text/event-stream` response body instead of reading it and causing the request to get hung up.
+- Stop `rz-wake` from suppressing native navigation. A form or anchor scope element no longer swallows the `submit` or `click` that wakes it.
 
 ## [0.13.0] - 2026-08-29
 
