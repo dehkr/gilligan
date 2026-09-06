@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the `rz-deposit` directive for routing JSON payloads to stores; takes one or more space-separated `@store` names.
 - Accept full media queries, since the query is no longer delimited by its own parentheses: `media-[screen and (max-width: 500px)]`.
 - Support an optional threshold on `intersect` (number from 0 to 1): `intersect-[0.5]`.
+- Add the `wake` trigger source that fires when the nearest enclosing scope activates.
 
 ### Changed
 

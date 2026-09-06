@@ -1,9 +1,11 @@
 import { getApp, type RouseApp } from '../core/app';
+import { getDirectiveValue } from '../core/attributes';
 import { STORE_PREFIX } from '../core/constants';
 import { warn } from '../core/diagnostics';
-import { parseStoreRef } from '../core/parser';
+import { parseStoreRef, parseTriggers } from '../core/parser';
 import { getPathRoot } from '../core/path';
 import { applyTiming, parseTime } from '../core/timing';
+import { SCOPE_SELECTOR } from '../directives/rz-scope';
 import { subscribeNamed } from '../net/sse-engine';
 import type {
   ActionFn,
@@ -16,6 +18,7 @@ import type {
   TriggerOptions,
   VoidFn,
 } from '../types';
+import { isScopeAwake } from './binder';
 import { applyModifiers, getListenerOptions, resolveListenerTarget } from './modifiers';
 
 export interface TriggerContext {
@@ -355,6 +358,41 @@ export const triggerSources: Record<string, TriggerSourceHandler> = {
     return () => inst.root.removeEventListener('rz:app:ready', action);
   },
 
+  /** Fires when the nearest enclosing scope is activated. */
+  wake: ({ el, app, action }) => {
+    const scopeEl = el.closest<HTMLElement>(SCOPE_SELECTOR);
+
+    if (!scopeEl) {
+      __DEV__ && warn(`The 'wake' trigger requires an enclosing scope element.`, el);
+      return null;
+    }
+
+    const inst = app || getApp(el);
+    if (!inst || !getApp(scopeEl, inst)) {
+      return null;
+    }
+
+    if (__DEV__ && scopeEl === el && gatesOnWake(el)) {
+      warn(`The 'wake' trigger can't be used to wake its own scope element.`, el);
+    }
+
+    // A directive mounted into a scope that connected earlier missed the event.
+    // The listener still attaches, so a later reconnect fires too.
+    if (isScopeAwake(scopeEl)) {
+      action();
+    }
+
+    const onConnect = (e: Event) => {
+      // rz:scope:connect bubbles, so a descendant scope's connect would trigger action
+      if (e.target === scopeEl) {
+        action(e);
+      }
+    };
+
+    scopeEl.addEventListener('rz:scope:connect', onConnect);
+    return () => scopeEl.removeEventListener('rz:scope:connect', onConnect);
+  },
+
   /** Opts the directive out of all auto-binding (explicit no-op). */
   none: () => null,
 
@@ -545,4 +583,10 @@ function attachTimingSource(type: 'timeout' | 'interval', ctx: TriggerContext) {
 
   const id = setup(ctx.action, ms);
   return () => clear(id);
+}
+
+/** Checks if an element's own `rz-wake` includes `wake`. */
+function gatesOnWake(el: Element): boolean {
+  const value = getDirectiveValue(el, 'wake');
+  return !!value && parseTriggers(value).some((trigger) => trigger.event === 'wake');
 }

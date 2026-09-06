@@ -15,8 +15,15 @@ const scopeBindings = new WeakMap<Element, HTMLElement>();
 const renderOwned = new WeakSet<Element>();
 /** Bound directives the binder scans for. */
 const boundDirectiveList: BoundDirective[] = [];
+/** Scope elements whose DOM is bound and whose `rz:scope:connect` has fired. */
+const awakeScopes = new WeakSet<Element>();
 /** Cache for the generated selector string. */
 let boundSelectorCache: string | null = null;
+
+/** Returns true if a scope element is currently connected. */
+export function isScopeAwake(el: Element): boolean {
+  return awakeScopes.has(el);
+}
 
 /**
  * Registers the directives the binder scans for and binds.
@@ -262,6 +269,10 @@ export function bindScope(root: HTMLElement, instance: Scope, app: RouseApp) {
     instance.connect();
   }
 
+  // Marked before the dispatch: a `connect` handler that swaps in new DOM triggers a
+  // scan, and any `wake` directive inside it must resolve an already-awake scope.
+  awakeScopes.add(root);
+
   // The DOM is bound and the scope is fully active
   dispatch(root, 'rz:scope:connect', { instance });
 
@@ -273,6 +284,7 @@ export function bindScope(root: HTMLElement, instance: Scope, app: RouseApp) {
     if (typeof instance.disconnect === 'function') {
       instance.disconnect();
     }
+    awakeScopes.delete(root);
     dispatch(root, 'rz:scope:disconnect', { instance });
   }
 
