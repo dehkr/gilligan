@@ -9,7 +9,8 @@ import type { StoreManager } from './store';
 /**
  * Invokes a resolved handler with a `HandlerCtx` built from the triggering
  * event and the binding scope's render context. Returns the handler's result,
- * or `undefined` if it throws.
+ * or `undefined` if it throws. An async handler is treated the same way: a
+ * rejection is reported, and the returned promise resolves to `undefined`.
  */
 export function invokeHandler(
   method: AnyFn,
@@ -19,16 +20,25 @@ export function invokeHandler(
   el: Element,
   e: Event,
 ): unknown {
+  const onError = (error: unknown) => {
+    err(`Failed to execute '${name}()'.`, el, error);
+    return undefined;
+  };
+
   try {
     const args: HandlerCtx<Element> = {
       el,
       e,
       render: renderCtxOf(scope),
     };
-    return method.call(context, args);
+    const result = method.call(context, args);
+
+    // A rejection lands after this frame, where the catch below can't see it
+    return typeof result?.then === 'function'
+      ? (result as PromiseLike<unknown>).then(undefined, onError)
+      : result;
   } catch (error) {
-    __DEV__ && err(`Failed to execute '${name}()'.`, el, error);
-    return undefined;
+    return onError(error);
   }
 }
 
